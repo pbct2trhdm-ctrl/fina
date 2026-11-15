@@ -20,6 +20,7 @@ async function apagarTudo() {
     prisma.limiteCategoria.deleteMany(),
     prisma.reserva.deleteMany(),
     prisma.meta.deleteMany(),
+    prisma.cartao.deleteMany(),
   ]);
 }
 

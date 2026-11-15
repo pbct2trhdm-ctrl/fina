@@ -36,6 +36,21 @@ enum Visao {
   CASA
 }
 
+/// Cartão de crédito. Gastos e compras parceladas apontam para o cartão em que
+/// foram feitos; apagar o cartão mantém os lançamentos (ficam sem cartão).
+model Cartao {
+  id            String            @id @default(cuid())
+  nome          String
+  /// Dia em que a fatura fecha e dia em que vence (só informativos).
+  diaFechamento Int?
+  diaVencimento Int?
+  /// De quem é o cartão, usado como sugestão ao importar a fatura.
+  escopo        Escopo            @default(EU)
+  gastos        Gasto[]
+  compras       CompraParcelada[]
+  criadoEm      DateTime          @default(now())
+}
+
 /// Gasto avulso (lançado à mão ou importado de extrato).
 model Gasto {
   id        String    @id @default(cuid())
@@ -44,6 +59,8 @@ model Gasto {
   valor     Float
   data      DateTime
   escopo    Escopo
+  cartaoId  String?
+  cartao    Cartao?   @relation(fields: [cartaoId], references: [id], onDelete: SetNull)
   criadoEm  DateTime  @default(now())
 
   @@index([data])
@@ -88,6 +105,8 @@ model CompraParcelada {
   parcelas     Int
   inicio       String
   diaCobranca  Int
+  cartaoId     String?
+  cartao       Cartao?   @relation(fields: [cartaoId], references: [id], onDelete: SetNull)
   criadoEm     DateTime  @default(now())
 }
 

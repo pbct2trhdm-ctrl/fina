@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { categoria, data, dinheiro, escopo, tipoEntrada } from "@/lib/validacao";
+import { cartaoExistente } from "@/lib/financas";
 
 export type LinhaImportada = { data: string; descricao: string; valor: number; categoria: string; escopo: string };
 
@@ -20,7 +21,8 @@ export async function gastosNoIntervalo(de: string, ate: string) {
 }
 
 /** Grava as linhas escolhidas na revisão do extrato; linhas inválidas são descartadas. */
-export async function importarGastos(linhas: LinhaImportada[]) {
+export async function importarGastos(linhas: LinhaImportada[], cartaoId: string | null = null) {
+  const cartao = await cartaoExistente(cartaoId);
   const validas = linhas
     .slice(0, 2000)
     .map((linha) => ({
@@ -29,6 +31,7 @@ export async function importarGastos(linhas: LinhaImportada[]) {
       valor: dinheiro(String(linha.valor)),
       categoria: categoria(linha.categoria),
       escopo: escopo(linha.escopo),
+      cartaoId: cartao,
     }))
     .filter((linha): linha is typeof linha & { data: Date } => !!linha.data && !!linha.descricao && linha.valor > 0);
 

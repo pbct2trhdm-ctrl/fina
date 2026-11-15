@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
+import { listarCartoes } from "@/lib/financas";
 import { CompraForm } from "@/components/compra-form";
 import { atualizarCompra, excluirCompra } from "@/lib/actions/parcelados";
 import { classeBotaoPerigo, classeTituloPagina } from "@/lib/estilos";
@@ -8,7 +9,7 @@ import { LinkVoltar } from "@/components/link-voltar";
 
 export default async function EditarCompraPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const compra = await prisma.compraParcelada.findUnique({ where: { id } });
+  const [compra, cartoes] = await Promise.all([prisma.compraParcelada.findUnique({ where: { id } }), listarCartoes()]);
   if (!compra) notFound();
 
   return (
@@ -26,7 +27,7 @@ export default async function EditarCompraPage({ params }: { params: Promise<{ i
           </BotaoEnvio>
         </form>
       </div>
-      <CompraForm compra={compra} action={atualizarCompra.bind(null, compra.id)} />
+      <CompraForm compra={compra} cartoes={cartoes} action={atualizarCompra.bind(null, compra.id)} />
     </div>
   );
 }

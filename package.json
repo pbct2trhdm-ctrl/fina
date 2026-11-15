@@ -8,7 +8,9 @@
     "start": "next start -p 3100",
     "lint": "eslint",
     "postinstall": "prisma generate",
-    "backup": "node scripts/backup.mjs"
+    "backup": "node scripts/backup.mjs",
+    "servico": "bash scripts/instalar-servico.sh",
+    "atualizar": "bash scripts/atualizar.sh"
   },
   "dependencies": {
     "@prisma/adapter-better-sqlite3": "^7.8.0",

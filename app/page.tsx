@@ -6,6 +6,7 @@ import {
   entradasPorMes,
   lancamentosPorMes,
   limitesDaVisao,
+  listarCartoes,
   mediaGastosRecentes,
   naVisao,
   orcamentoDaVisao,
@@ -56,7 +57,7 @@ export default async function ResumoPage({
   const atual = mesAtual();
   const meses = Array.from({ length: 6 }, (_, i) => somarMeses(mes, i - 5));
 
-  const [vazio, porMes, contas, parcelas, mapaOrcamentos, limites, reserva, metas, media, entradasMeses, entradasFixas] = await Promise.all([
+  const [vazio, porMes, contas, parcelas, mapaOrcamentos, limites, reserva, metas, media, entradasMeses, entradasFixas, cartoes] = await Promise.all([
     Promise.all([
       prisma.gasto.count(),
       prisma.contaFixa.count(),
@@ -76,6 +77,7 @@ export default async function ResumoPage({
     mediaGastosRecentes(),
     entradasPorMes(meses),
     entradasFixasDoMes(mes),
+    listarCartoes(),
   ]);
 
   if (vazio) {
@@ -119,8 +121,22 @@ export default async function ResumoPage({
   const valoresGrafico = meses.map((m) => series.map((serie) => somar(porMes[m].filter((item) => item.escopo === serie))));
   const entradasGrafico = meses.map((m) => somar(naVisao(entradasMeses[m], visao)));
 
+  // Sem orçamento definido (valor zero) não há o que estourar: em vez de acusar
+  // "acima do orçamento", a tela convida a definir um.
+  const semOrcamento = orcamento <= 0;
+
   let recado: React.ReactNode;
-  if (mes === atual) {
+  if (semOrcamento) {
+    recado = (
+      <>
+        Nenhum orçamento definido{visao === "TODOS" ? "" : " para esta visão"}.{" "}
+        <Link href="/orcamento" className="font-semibold text-accent hover:underline">
+          Definir orçamento
+        </Link>{" "}
+        para acompanhar o limite do mês.
+      </>
+    );
+  } else if (mes === atual) {
     const dias = diasNoMes(mes) - Number(hojeIsoLocal().slice(8)) + 1;
     recado =
       livre >= 0 ? (
@@ -182,7 +198,7 @@ export default async function ResumoPage({
             <span className="text-sm font-normal text-texto-secundario">/ {formatarMoedaCheia(orcamento)}</span>
           </p>
           <div className="my-3">
-            <BarraProgresso valor={total} total={orcamento} alertaAoEstourar rotulo="Gasto sobre o orçamento" />
+            <BarraProgresso valor={total} total={orcamento} alertaAoEstourar={!semOrcamento} rotulo="Gasto sobre o orçamento" />
           </div>
           <p className="text-sm text-texto-secundario">{recado}</p>
           <dl className="mt-4 grid grid-cols-3 gap-3 border-t border-accent/15 pt-4">
@@ -193,8 +209,14 @@ export default async function ResumoPage({
             <div>
               <dt className="text-xs text-texto-secundario">Livre no mês</dt>
               <dd className="font-semibold">
-                {livre < 0 ? "−" : ""}
-                {formatarMoeda(Math.abs(livre))}
+                {semOrcamento ? (
+                  "—"
+                ) : (
+                  <>
+                    {livre < 0 ? "−" : ""}
+                    {formatarMoeda(Math.abs(livre))}
+                  </>
+                )}
               </dd>
             </div>
             <div>
@@ -222,10 +244,10 @@ export default async function ResumoPage({
                         <Bolinha escopo={escopo} />
                         {LABEL_ESCOPO[escopo]}
                       </span>
-                      <BarraProgresso valor={gasto} total={limite} alertaAoEstourar rotulo={`Gasto de ${LABEL_ESCOPO[escopo]}`} />
+                      <BarraProgresso valor={gasto} total={limite} alertaAoEstourar={limite > 0} rotulo={`Gasto de ${LABEL_ESCOPO[escopo]}`} />
                       <span className="text-right tabular-nums">
                         {formatarMoeda(gasto)} <span className="text-xs text-texto-secundario">/ {formatarMoedaCheia(limite)}</span>
-                        {gasto > limite && <strong className="ml-1 text-critico">▲</strong>}
+                        {limite > 0 && gasto > limite && <strong className="ml-1 text-critico">▲</strong>}
                       </span>
                     </Link>
                   </li>
@@ -332,6 +354,43 @@ export default async function ResumoPage({
             />
           </div>
         </section>
+
+        {/* Cartões de crédito: gasto do mês em cada um */}
+        {cartoes.length > 0 && (
+          <section className={`${classeCard} lg:order-5 lg:col-span-12`}>
+            <div className="mb-2 flex items-center justify-between">
+              <h2 className="text-sm text-texto-secundario">Cartões de crédito</h2>
+              <Link href={montarHref("/cartoes", { mes })} className={linkDiscreto}>
+                Ver cartões
+              </Link>
+            </div>
+            <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              {cartoes.map((cartao) => {
+                const itens = lista.filter((item) => item.cartaoId === cartao.id);
+                return (
+                  <li key={cartao.id}>
+                    <Link
+                      href={montarHref("/lancamentos", { visao, mes, cartao: cartao.id })}
+                      className="block rounded-xl px-3 py-2.5 transition-colors hover:bg-white/70"
+                    >
+                      <span className="flex items-center justify-between gap-3">
+                        <span className="inline-flex items-center gap-2 font-semibold">
+                          <Bolinha escopo={cartao.escopo} />
+                          {cartao.nome}
+                        </span>
+                        <span className="tabular-nums">{formatarMoeda(somar(itens))}</span>
+                      </span>
+                      <span className="block text-xs text-texto-secundario">
+                        {itens.length} {itens.length === 1 ? "lançamento" : "lançamentos"}
+                        {cartao.diaVencimento ? ` · vence dia ${cartao.diaVencimento}` : ""}
+                      </span>
+                    </Link>
+                  </li>
+                );
+              })}
+            </ul>
+          </section>
+        )}
 
         {/* Contas do mês */}
         <section className={`${classeCard} lg:order-5 lg:col-span-6`}>

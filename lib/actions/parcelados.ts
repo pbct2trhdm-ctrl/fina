@@ -4,8 +4,9 @@ import { prisma } from "@/lib/prisma";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { categoria, dinheiro, escopo, inteiro, mes, texto } from "@/lib/validacao";
+import { cartaoExistente } from "@/lib/financas";
 
-function dadosComuns(formData: FormData) {
+async function dadosComuns(formData: FormData) {
   const descricao = texto(formData.get("descricao"));
   const valorParcela = dinheiro(formData.get("valorParcela"));
   if (!descricao) throw new Error("Descrição é obrigatória");
@@ -18,6 +19,7 @@ function dadosComuns(formData: FormData) {
     diaCobranca: inteiro(formData.get("diaCobranca"), 1, 31, 10),
     categoria: categoria(formData.get("categoria")),
     escopo: escopo(formData.get("escopo")),
+    cartaoId: await cartaoExistente(formData.get("cartaoId")),
   };
 }
 
@@ -28,13 +30,13 @@ function revalidar() {
 }
 
 export async function criarCompra(formData: FormData) {
-  await prisma.compraParcelada.create({ data: dadosComuns(formData) });
+  await prisma.compraParcelada.create({ data: await dadosComuns(formData) });
   revalidar();
   redirect("/parcelados");
 }
 
 export async function atualizarCompra(id: string, formData: FormData) {
-  await prisma.compraParcelada.update({ where: { id }, data: dadosComuns(formData) });
+  await prisma.compraParcelada.update({ where: { id }, data: await dadosComuns(formData) });
   revalidar();
   redirect("/parcelados");
 }

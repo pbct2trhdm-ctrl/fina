@@ -4,8 +4,9 @@ import { prisma } from "@/lib/prisma";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { categoria, data, dinheiro, escopo, texto } from "@/lib/validacao";
+import { cartaoExistente } from "@/lib/financas";
 
-function dadosComuns(formData: FormData) {
+async function dadosComuns(formData: FormData) {
   const descricao = texto(formData.get("descricao"));
   const quando = data(formData.get("data"));
   const valor = dinheiro(formData.get("valor"));
@@ -18,6 +19,7 @@ function dadosComuns(formData: FormData) {
     escopo: escopo(formData.get("escopo")),
     valor,
     data: quando,
+    cartaoId: await cartaoExistente(formData.get("cartaoId")),
   };
 }
 
@@ -27,13 +29,13 @@ function revalidar() {
 }
 
 export async function criarGasto(formData: FormData) {
-  const gasto = await prisma.gasto.create({ data: dadosComuns(formData) });
+  const gasto = await prisma.gasto.create({ data: await dadosComuns(formData) });
   revalidar();
   redirect(`/lancamentos?mes=${gasto.data.toISOString().slice(0, 7)}`);
 }
 
 export async function atualizarGasto(id: string, formData: FormData) {
-  const gasto = await prisma.gasto.update({ where: { id }, data: dadosComuns(formData) });
+  const gasto = await prisma.gasto.update({ where: { id }, data: await dadosComuns(formData) });
   revalidar();
   redirect(`/lancamentos?mes=${gasto.data.toISOString().slice(0, 7)}`);
 }

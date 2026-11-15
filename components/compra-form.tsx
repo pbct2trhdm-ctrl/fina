@@ -1,10 +1,18 @@
 import type { CompraParcelada } from "@/app/generated/prisma/client";
 import { classeInput, classeLabel, classeBotaoPrimario } from "@/lib/estilos";
 import { BotaoEnvio } from "@/components/botao-envio";
-import { CampoCategoria, CampoEscopo } from "@/components/campos";
+import { CampoCartao, CampoCategoria, CampoEscopo } from "@/components/campos";
 import { mesAtual } from "@/lib/meses";
 
-export function CompraForm({ compra, action }: { compra?: CompraParcelada; action: (formData: FormData) => void }) {
+export function CompraForm({
+  compra,
+  cartoes,
+  action,
+}: {
+  compra?: CompraParcelada;
+  cartoes: { id: string; nome: string }[];
+  action: (formData: FormData) => void;
+}) {
   return (
     <form action={action} className="max-w-xl space-y-4">
       <div>
@@ -47,6 +55,10 @@ export function CompraForm({ compra, action }: { compra?: CompraParcelada; actio
       <div className="grid grid-cols-2 gap-4">
         <CampoEscopo padrao={compra?.escopo ?? "CASA"} />
         <CampoCategoria padrao={compra?.categoria ?? "ELETRONICOS"} />
+      </div>
+
+      <div className="max-w-[calc(50%-0.5rem)]">
+        <CampoCartao cartoes={cartoes} padrao={compra?.cartaoId} />
       </div>
 
       {compra && (

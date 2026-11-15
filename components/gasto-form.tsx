@@ -3,9 +3,17 @@ import { classeInput, classeLabel, classeBotaoPrimario } from "@/lib/estilos";
 import { paraInputDate } from "@/lib/formatacao";
 import { hojeIsoLocal } from "@/lib/datas";
 import { BotaoEnvio } from "@/components/botao-envio";
-import { CampoCategoria, CampoEscopo } from "@/components/campos";
+import { CampoCartao, CampoCategoria, CampoEscopo } from "@/components/campos";
 
-export function GastoForm({ gasto, action }: { gasto?: Gasto; action: (formData: FormData) => void }) {
+export function GastoForm({
+  gasto,
+  cartoes,
+  action,
+}: {
+  gasto?: Gasto;
+  cartoes: { id: string; nome: string }[];
+  action: (formData: FormData) => void;
+}) {
   return (
     <form action={action} className="max-w-xl space-y-4">
       <div>
@@ -33,6 +41,10 @@ export function GastoForm({ gasto, action }: { gasto?: Gasto; action: (formData:
       <div className="grid grid-cols-2 gap-4">
         <CampoEscopo padrao={gasto?.escopo ?? "CASA"} />
         <CampoCategoria padrao={gasto?.categoria ?? "MERCADO"} />
+      </div>
+
+      <div className="max-w-[calc(50%-0.5rem)]">
+        <CampoCartao cartoes={cartoes} padrao={gasto?.cartaoId} />
       </div>
 
       <BotaoEnvio textoAguardando="Salvando…" className={classeBotaoPrimario}>

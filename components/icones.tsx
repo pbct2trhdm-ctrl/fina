@@ -58,6 +58,16 @@ export function IconeParcelados(props: IconeProps) {
   );
 }
 
+export function IconeCartoes(props: IconeProps) {
+  return (
+    <Svg {...props}>
+      <rect x="3" y="5.5" width="18" height="13" rx="2" />
+      <path d="M3 10h18" />
+      <path d="M6.5 15h3" strokeLinecap="round" />
+    </Svg>
+  );
+}
+
 export function IconeOrcamento(props: IconeProps) {
   return (
     <Svg {...props}>

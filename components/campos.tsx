@@ -18,6 +18,26 @@ export function CampoCategoria({ padrao = "OUTROS" }: { padrao?: string }) {
   );
 }
 
+/** Cartão de crédito em que a compra foi feita (opcional: em branco = débito, Pix ou dinheiro). */
+export function CampoCartao({ cartoes, padrao = "" }: { cartoes: { id: string; nome: string }[]; padrao?: string | null }) {
+  if (cartoes.length === 0) return null;
+  return (
+    <div>
+      <label className={classeLabel} htmlFor="cartaoId">
+        Cartão de crédito
+      </label>
+      <select id="cartaoId" name="cartaoId" defaultValue={padrao ?? ""} className={classeInput}>
+        <option value="">Nenhum (débito, Pix ou dinheiro)</option>
+        {cartoes.map((cartao) => (
+          <option key={cartao.id} value={cartao.id}>
+            {cartao.nome}
+          </option>
+        ))}
+      </select>
+    </div>
+  );
+}
+
 export function CampoEscopo({ padrao = "CASA" }: { padrao?: string }) {
   return (
     <div>

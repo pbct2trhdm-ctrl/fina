@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
+import { listarCartoes } from "@/lib/financas";
 import { GastoForm } from "@/components/gasto-form";
 import { atualizarGasto, excluirGasto } from "@/lib/actions/gastos";
 import { classeBotaoPerigo, classeTituloPagina } from "@/lib/estilos";
@@ -8,7 +9,7 @@ import { LinkVoltar } from "@/components/link-voltar";
 
 export default async function EditarGastoPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const gasto = await prisma.gasto.findUnique({ where: { id } });
+  const [gasto, cartoes] = await Promise.all([prisma.gasto.findUnique({ where: { id } }), listarCartoes()]);
   if (!gasto) notFound();
 
   return (
@@ -22,7 +23,7 @@ export default async function EditarGastoPage({ params }: { params: Promise<{ id
           </BotaoEnvio>
         </form>
       </div>
-      <GastoForm gasto={gasto} action={atualizarGasto.bind(null, gasto.id)} />
+      <GastoForm gasto={gasto} cartoes={cartoes} action={atualizarGasto.bind(null, gasto.id)} />
     </div>
   );
 }

@@ -17,6 +17,8 @@ export type Lancamento = {
   categoria: CategoriaChave;
   escopo: EscopoChave;
   valor: number;
+  /** Cartão de crédito em que o gasto ou a parcela foi feito; nulo = débito, Pix ou dinheiro. */
+  cartaoId: string | null;
 };
 
 export const somar = (itens: { valor: number }[]) => itens.reduce((total, item) => total + item.valor, 0);
@@ -52,6 +54,7 @@ export async function lancamentosPorMes(meses: string[]): Promise<Record<string,
       categoria: gasto.categoria,
       escopo: gasto.escopo,
       valor: gasto.valor,
+      cartaoId: gasto.cartaoId,
     });
   }
   for (const pagamento of pagamentos) {
@@ -63,6 +66,7 @@ export async function lancamentosPorMes(meses: string[]): Promise<Record<string,
       categoria: pagamento.conta.categoria,
       escopo: pagamento.conta.escopo,
       valor: pagamento.valor,
+      cartaoId: null,
     });
   }
   for (const compra of compras) {
@@ -77,6 +81,7 @@ export async function lancamentosPorMes(meses: string[]): Promise<Record<string,
         categoria: compra.categoria,
         escopo: compra.escopo,
         valor: compra.valorParcela,
+        cartaoId: compra.cartaoId,
       });
     }
   }
@@ -255,4 +260,17 @@ export async function entradasFixasDoMes(mes: string) {
       situacao,
     };
   });
+}
+
+/** Cartões de crédito em ordem alfabética. */
+export async function listarCartoes() {
+  return prisma.cartao.findMany({ orderBy: { nome: "asc" } });
+}
+
+/** Devolve o id se o cartão existe; senão nulo (campo em branco ou cartão apagado). */
+export async function cartaoExistente(valor: unknown): Promise<string | null> {
+  const id = (valor ?? "").toString().trim();
+  if (!id) return null;
+  const cartao = await prisma.cartao.findUnique({ where: { id }, select: { id: true } });
+  return cartao?.id ?? null;
 }

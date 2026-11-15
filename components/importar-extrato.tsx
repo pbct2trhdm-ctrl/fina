@@ -14,7 +14,7 @@ type Modo = "GASTOS" | "ENTRADAS";
 
 const chave = (data: string, valor: number, descricao: string) => `${data}|${valor.toFixed(2)}|${semAcento(descricao)}`;
 
-export function ImportarExtrato() {
+export function ImportarExtrato({ cartoes }: { cartoes: { id: string; nome: string; escopo: string }[] }) {
   // Lançamentos lidos do arquivo, com o sinal original — guardados para o botão "trocar".
   const [origem, setOrigem] = useState<{ brutas: LinhaExtrato[]; nome: string; inverter: boolean; pdf: boolean } | null>(null);
   // PDF protegido aguardando a senha.
@@ -25,6 +25,8 @@ export function ImportarExtrato() {
   const [escopo, setEscopo] = useState<string>("CASA");
   // O que trazer do arquivo: as saídas (gastos) ou o dinheiro que entrou.
   const [modo, setModo] = useState<Modo>("GASTOS");
+  // Cartão de crédito da fatura (em branco = extrato de conta, sem cartão).
+  const [cartaoId, setCartaoId] = useState("");
   const [erro, setErro] = useState("");
   const [lendo, setLendo] = useState(false);
   const [enviando, iniciarEnvio] = useTransition();
@@ -112,6 +114,13 @@ export function ImportarExtrato() {
     if (origem) carregar(origem.brutas, origem.nome, origem.inverter, origem.pdf, novo);
   }
 
+  function trocarCartao(id: string) {
+    setCartaoId(id);
+    // A pessoa dona do cartão é a sugestão natural para as compras da fatura.
+    const dono = cartoes.find((c) => c.id === id)?.escopo;
+    if (dono) trocarEscopo(dono);
+  }
+
   function trocarEscopo(novo: string) {
     setEscopo(novo);
     setLinhas((atuais) => atuais.map((linha) => ({ ...linha, escopo: novo })));
@@ -127,7 +136,10 @@ export function ImportarExtrato() {
         if (modo === "ENTRADAS") {
           await importarEntradas(escolhidas.map(({ data, descricao, valor, categoria, escopo: de }) => ({ data, descricao, valor, tipo: categoria, escopo: de })));
         } else {
-          await importarGastos(escolhidas.map(({ data, descricao, valor, categoria, escopo: de }) => ({ data, descricao, valor, categoria, escopo: de })));
+          await importarGastos(
+            escolhidas.map(({ data, descricao, valor, categoria, escopo: de }) => ({ data, descricao, valor, categoria, escopo: de })),
+            cartaoId || null
+          );
         }
       } catch (e) {
         // redirect() do Next sai por exceção própria; qualquer outra é erro de verdade.
@@ -168,6 +180,21 @@ export function ImportarExtrato() {
             ))}
           </select>
         </div>
+        {cartoes.length > 0 && modo === "GASTOS" && (
+          <div className="md:col-span-2">
+            <label className={classeLabel} htmlFor="cartao-fatura">
+              Cartão de crédito da fatura
+            </label>
+            <select id="cartao-fatura" value={cartaoId} onChange={(e) => trocarCartao(e.target.value)} className={classeInput}>
+              <option value="">Nenhum (extrato da conta)</option>
+              {cartoes.map((cartao) => (
+                <option key={cartao.id} value={cartao.id}>
+                  {cartao.nome}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
         <p className="text-sm text-texto-secundario md:col-span-4">
           O arquivo é lido neste navegador; só as linhas que você escolher são gravadas. Confira e ajuste antes de importar.
         </p>

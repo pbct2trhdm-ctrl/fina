@@ -28,6 +28,7 @@ O gasto de um mês é a soma de: gastos avulsos do mês, contas fixas **pagas** 
 ## Modelo de dados
 
 - **Gasto**: descrição, categoria, valor, data e de quem é (Eu, Esposa ou Casa).
+- **Cartao**: cartão de crédito (nome, de quem é e dias de fechamento e vencimento, informativos). Gastos e compras parceladas apontam para o cartão em que foram feitos; apagar o cartão mantém os lançamentos, que ficam sem cartão.
 - **Entrada**: dinheiro que entrou em uma data (renda extra, reembolso), com tipo e de quem é.
 - **EntradaFixa** + **RecebimentoEntrada**: entrada mensal (salário), que só conta no mês depois de confirmada; mesma lógica das contas fixas.
 - **ContaFixa** + **PagamentoConta**: conta mensal com dia de vencimento; cada pagamento guarda o valor da época, então mudar o valor da conta não altera meses já pagos. Encerrar uma conta mantém o histórico.
@@ -40,6 +41,7 @@ O gasto de um mês é a soma de: gastos avulsos do mês, contas fixas **pagas** 
 
 - **Resumo** (`/`): gasto do mês contra o orçamento, quanto dá para gastar por dia, balanço do mês (entradas, saídas e saldo), gasto por pessoa, últimos 6 meses, categorias com limites, contas do mês (com botão Pagar), parcelas, reserva e metas.
 - **Lançamentos**: tudo o que entrou no mês (gastos, contas pagas e parcelas), com busca e filtro por categoria; cadastro e edição de gastos.
+- **Cartões**: gasto de cada cartão no mês (por pessoa) e nos últimos 6 meses; "Sem cartão" reúne débito, Pix e contas fixas. A importação de fatura escolhe o cartão, e Lançamentos filtra por cartão.
 - **Entradas**: entradas fixas do mês (com botão Confirmar), entradas avulsas e saldo do mês.
 - **Contas fixas**: situação do mês (paga, vencida, vence hoje, a vencer), cadastro, edição e encerramento.
 - **Parcelados**: compras em andamento e quitadas.
@@ -47,6 +49,10 @@ O gasto de um mês é a soma de: gastos avulsos do mês, contas fixas **pagas** 
 - **Metas e reserva**: reserva de emergência em meses de gastos e metas com prazo opcional.
 - **Importar extrato**: fatura do cartão ou extrato em PDF, CSV ou OFX, com revisão das linhas antes de gravar. O arquivo é lido no navegador. CSV/OFX: `lib/extrato.ts`. PDF: `lib/extrato-pdf.ts` tira o texto do PDF e procura linhas com data, descrição e valor (funciona por padrão de texto, não por banco; PDF digitalizado como imagem não é lido; PDF com senha pede a senha).
 - **Configurações**: dados de exemplo, cópia de segurança e apagar tudo.
+
+## Ligar sozinho no Mac (atalho)
+
+`npm run servico` compila a versão de produção e instala um serviço do macOS (`com.financas.casa`) que liga o sistema ao entrar no Mac e o religa se ele parar. Ele responde só neste computador, em http://localhost:3100. Depois, no Safari, abra o endereço e use **Arquivo → Adicionar ao Dock** para ter o ícone de aplicativo. Com o serviço instalado, não use mais `npm run dev`. Para aplicar mudanças no código: `npm run atualizar`. Para remover o serviço: `bash scripts/instalar-servico.sh --remover`. Log: `~/Library/Logs/financas-casa.log`.
 
 ## Cópia de segurança
 

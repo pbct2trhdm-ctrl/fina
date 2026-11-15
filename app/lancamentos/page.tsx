@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { lancamentosPorMes, naVisao, somar } from "@/lib/financas";
+import { lancamentosPorMes, listarCartoes, naVisao, somar } from "@/lib/financas";
 import {
   CATEGORIAS,
   LABEL_CATEGORIA,
@@ -28,7 +28,7 @@ const EDITAR: Record<string, (id: string) => string> = {
 export default async function LancamentosPage({
   searchParams,
 }: {
-  searchParams: Promise<{ visao?: string; mes?: string; q?: string; categoria?: string }>;
+  searchParams: Promise<{ visao?: string; mes?: string; q?: string; categoria?: string; cartao?: string }>;
 }) {
   const parametros = await searchParams;
   const visao = lerVisao(parametros.visao);
@@ -37,12 +37,16 @@ export default async function LancamentosPage({
   const categoria = (CATEGORIAS as readonly string[]).includes(parametros.categoria ?? "") ? parametros.categoria! : "";
   const normalizar = (texto: string) => texto.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
 
-  const doMes = naVisao((await lancamentosPorMes([mes]))[mes], visao);
+  const [porMes, cartoes] = await Promise.all([lancamentosPorMes([mes]), listarCartoes()]);
+  const nomeCartao = new Map(cartoes.map((c) => [c.id, c.nome]));
+  const cartao = parametros.cartao === "SEM" || nomeCartao.has(parametros.cartao ?? "") ? parametros.cartao! : "";
+  const doMes = naVisao(porMes[mes], visao);
   const lista = doMes
     .filter((item) => !categoria || item.categoria === categoria)
+    .filter((item) => !cartao || (cartao === "SEM" ? !item.cartaoId : item.cartaoId === cartao))
     .filter((item) => !q || normalizar(item.descricao).includes(normalizar(q)));
-  const filtrado = !!q || !!categoria;
-  const extras = { q: q || undefined, categoria: categoria || undefined };
+  const filtrado = !!q || !!categoria || !!cartao;
+  const extras = { q: q || undefined, categoria: categoria || undefined, cartao: cartao || undefined };
 
   return (
     <div className="max-w-6xl">
@@ -73,6 +77,17 @@ export default async function LancamentosPage({
               </option>
             ))}
           </select>
+          {cartoes.length > 0 && (
+            <select name="cartao" defaultValue={cartao} aria-label="Cartão" className={classeInputAuto}>
+              <option value="">Todos os cartões</option>
+              {cartoes.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.nome}
+                </option>
+              ))}
+              <option value="SEM">Sem cartão</option>
+            </select>
+          )}
           <button type="submit" className={classeBotaoSecundario}>
             Filtrar
           </button>
@@ -99,6 +114,7 @@ export default async function LancamentosPage({
                 <th className="px-4 py-3 font-semibold">Descrição</th>
                 <th className="px-4 py-3 font-semibold">Categoria</th>
                 <th className="px-4 py-3 font-semibold">De quem</th>
+                {cartoes.length > 0 && <th className="px-4 py-3 font-semibold">Cartão</th>}
                 <th className="px-4 py-3 font-semibold">Tipo</th>
                 <th className="px-4 py-3 text-right font-semibold">Valor</th>
                 <th className="px-4 py-3" />
@@ -118,6 +134,7 @@ export default async function LancamentosPage({
                       {LABEL_ESCOPO[item.escopo]}
                     </span>
                   </td>
+                  {cartoes.length > 0 && <td className="px-4 py-2.5 text-texto-secundario">{item.cartaoId ? nomeCartao.get(item.cartaoId) : "—"}</td>}
                   <td className="px-4 py-2.5">
                     <span className={classeBadgeNeutro}>{LABEL_TIPO_LANCAMENTO[item.tipo]}</span>
                   </td>
@@ -132,7 +149,7 @@ export default async function LancamentosPage({
             </tbody>
             <tfoot>
               <tr className="border-t border-slate-200/70 font-semibold">
-                <td className="px-4 py-3" colSpan={5}>
+                <td className="px-4 py-3" colSpan={cartoes.length > 0 ? 6 : 5}>
                   {lista.length} {lista.length === 1 ? "lançamento" : "lançamentos"}
                   {filtrado && <span className="font-normal text-texto-secundario"> de {doMes.length} no mês</span>}
                 </td>
