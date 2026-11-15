@@ -1,0 +1,123 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../app/generated/prisma"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+/// De quem é o gasto. A visão "Família" (todos) não é gravada: é a soma dos três.
+enum Escopo {
+  EU
+  ESPOSA
+  CASA
+}
+
+enum Categoria {
+  MORADIA
+  MERCADO
+  ALIMENTACAO
+  TRANSPORTE
+  SAUDE
+  LAZER
+  ROUPAS
+  ASSINATURAS
+  EDUCACAO
+  ELETRONICOS
+  OUTROS
+}
+
+/// Visão a que um limite de categoria se aplica (cada visão tem os seus).
+enum Visao {
+  TODOS
+  EU
+  ESPOSA
+  CASA
+}
+
+/// Gasto avulso (lançado à mão ou importado de extrato).
+model Gasto {
+  id        String    @id @default(cuid())
+  descricao String
+  categoria Categoria
+  valor     Float
+  data      DateTime
+  escopo    Escopo
+  criadoEm  DateTime  @default(now())
+
+  @@index([data])
+}
+
+/// Conta que se repete todo mês (aluguel, energia…). `inicio` e `fim` são
+/// meses "AAAA-MM"; `fim` nulo = conta em vigor.
+model ContaFixa {
+  id            String           @id @default(cuid())
+  descricao     String
+  categoria     Categoria
+  valor         Float
+  diaVencimento Int
+  escopo        Escopo
+  inicio        String
+  fim           String?
+  pagamentos    PagamentoConta[]
+  criadoEm      DateTime         @default(now())
+}
+
+/// Pagamento de uma conta fixa em um mês. Guarda o valor pago na época, para
+/// que mudar o valor da conta não altere os meses já pagos.
+model PagamentoConta {
+  id      String    @id @default(cuid())
+  contaId String
+  conta   ContaFixa @relation(fields: [contaId], references: [id], onDelete: Cascade)
+  mes     String
+  valor   Float
+  pagoEm  DateTime  @default(now())
+
+  @@unique([contaId, mes])
+  @@index([mes])
+}
+
+/// Compra parcelada: cada parcela entra sozinha no gasto do mês correspondente.
+model CompraParcelada {
+  id           String    @id @default(cuid())
+  descricao    String
+  categoria    Categoria
+  escopo       Escopo
+  valorParcela Float
+  parcelas     Int
+  inicio       String
+  diaCobranca  Int
+  criadoEm     DateTime  @default(now())
+}
+
+/// Orçamento mensal de cada pessoa/casa (o da família é a soma).
+model Orcamento {
+  escopo Escopo @id
+  valor  Float
+}
+
+model LimiteCategoria {
+  id        String    @id @default(cuid())
+  visao     Visao
+  categoria Categoria
+  valor     Float
+
+  @@unique([visao, categoria])
+}
+
+/// Reserva de emergência (registro único, id = 1).
+model Reserva {
+  id            Int   @id @default(1)
+  valorGuardado Float
+  mesesMeta     Int
+}
+
+model Meta {
+  id            String   @id @default(cuid())
+  descricao     String
+  valorAlvo     Float
+  valorGuardado Float
+  prazo         String?
+  criadoEm      DateTime @default(now())
+}

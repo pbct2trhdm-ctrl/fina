@@ -1,0 +1,45 @@
+"use server";
+
+import { prisma } from "@/lib/prisma";
+import { redirect } from "next/navigation";
+import { revalidatePath } from "next/cache";
+import { categoria, data, dinheiro, escopo, texto } from "@/lib/validacao";
+
+function dadosComuns(formData: FormData) {
+  const descricao = texto(formData.get("descricao"));
+  const quando = data(formData.get("data"));
+  const valor = dinheiro(formData.get("valor"));
+  if (!descricao) throw new Error("Descrição é obrigatória");
+  if (!quando) throw new Error("Data inválida");
+  if (valor <= 0) throw new Error("Valor deve ser maior que zero");
+  return {
+    descricao,
+    categoria: categoria(formData.get("categoria")),
+    escopo: escopo(formData.get("escopo")),
+    valor,
+    data: quando,
+  };
+}
+
+function revalidar() {
+  revalidatePath("/");
+  revalidatePath("/lancamentos");
+}
+
+export async function criarGasto(formData: FormData) {
+  const gasto = await prisma.gasto.create({ data: dadosComuns(formData) });
+  revalidar();
+  redirect(`/lancamentos?mes=${gasto.data.toISOString().slice(0, 7)}`);
+}
+
+export async function atualizarGasto(id: string, formData: FormData) {
+  const gasto = await prisma.gasto.update({ where: { id }, data: dadosComuns(formData) });
+  revalidar();
+  redirect(`/lancamentos?mes=${gasto.data.toISOString().slice(0, 7)}`);
+}
+
+export async function excluirGasto(id: string) {
+  const gasto = await prisma.gasto.delete({ where: { id } });
+  revalidar();
+  redirect(`/lancamentos?mes=${gasto.data.toISOString().slice(0, 7)}`);
+}
