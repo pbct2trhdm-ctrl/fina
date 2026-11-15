@@ -22,8 +22,13 @@ const DATA = `(?:\\d{1,2}/\\d{1,2}(?:/\\d{4}|/\\d{2})?(?![/\\d])|\\d{1,2}\\s+(?:
  * separador, não sinal, e fica de fora.
  */
 const VALOR = "(?:-\\s*(?=\\d)|-(?=R\\$)|\\+\\s*)?(?:R\\$\\s*)?(?:[-+]\\s*)?\\d{1,3}(?:\\.\\d{3})*,\\d{2}(?:\\s*-)?(?:\\s*(?:CR|C|D)\\b)?";
-/** Um lançamento a partir da posição atual: data, descrição, valor — seguido de outro lançamento (fatura em duas colunas) ou do fim da linha. */
-const LANCAMENTO = new RegExp(`[\\s•·*|]*(${DATA})\\s+(.+?)\\s+(${VALOR})(?=\\s+${DATA}\\s|\\s*$)`, "iy");
+/**
+ * Um lançamento em qualquer ponto da linha: data (não colada a outro número,
+ * para ignorar o dígito de coluna que alguns bancos põem antes dela), descrição
+ * e valor. Pode haver texto de outra coluna antes ou depois — faturas em duas
+ * colunas e resumos ao lado dos lançamentos são comuns.
+ */
+const LANCAMENTO = new RegExp(`(?<![\\d/])(${DATA})\\s+(.+?)\\s+(${VALOR})(?=\\s|$)`, "gi");
 const VALOR_NO_FIM = new RegExp(`^(.*\\S)\\s+(${VALOR})$`, "i");
 const PARCELA = /(?:^|[\s(])(\d{1,2})\s*\/\s*(\d{1,2})(?![\/\d])/;
 const EH_PAGAMENTO = /pagamento (efetuado|recebido|de fatura|da fatura|em \d)|pa?gto\.? (de |da )?fatura|credito de pagamento|estorno|desconto de antecipacao/;
@@ -103,12 +108,7 @@ export function lerLinhasDeFatura(linhas: string[], hoje: string): LinhaExtrato[
 
   for (const bruta of linhas) {
     const linha = bruta.replace(/[−–—]/g, "-").replace(/\s+/g, " ").trim();
-    let posicao = 0;
-    while (posicao < linha.length) {
-      LANCAMENTO.lastIndex = posicao;
-      const m = LANCAMENTO.exec(linha);
-      if (!m) break;
-      posicao = LANCAMENTO.lastIndex;
+    for (const m of linha.matchAll(LANCAMENTO)) {
       const data = lerDataDeFatura(m[1].trim(), referencia);
       if (!data) continue;
       const dupla = m[2].match(VALOR_NO_FIM);
