@@ -121,3 +121,51 @@ model Meta {
   prazo         String?
   criadoEm      DateTime @default(now())
 }
+
+enum TipoEntrada {
+  SALARIO
+  HONORARIOS
+  EXTRA
+  OUTROS
+}
+
+/// Entrada de dinheiro avulsa (lançada à mão ou importada de extrato).
+model Entrada {
+  id        String      @id @default(cuid())
+  descricao String
+  tipo      TipoEntrada
+  valor     Float
+  data      DateTime
+  escopo    Escopo
+  criadoEm  DateTime    @default(now())
+
+  @@index([data])
+}
+
+/// Entrada que se repete todo mês (salário…). Mesma lógica da ContaFixa:
+/// `inicio`/`fim` são meses "AAAA-MM" e só conta no mês depois de confirmada.
+model EntradaFixa {
+  id             String               @id @default(cuid())
+  descricao      String
+  tipo           TipoEntrada
+  valor          Float
+  diaRecebimento Int
+  escopo         Escopo
+  inicio         String
+  fim            String?
+  recebimentos   RecebimentoEntrada[]
+  criadoEm       DateTime             @default(now())
+}
+
+/// Recebimento confirmado de uma entrada fixa em um mês, com o valor da época.
+model RecebimentoEntrada {
+  id         String      @id @default(cuid())
+  entradaId  String
+  entrada    EntradaFixa @relation(fields: [entradaId], references: [id], onDelete: Cascade)
+  mes        String
+  valor      Float
+  recebidoEm DateTime    @default(now())
+
+  @@unique([entradaId, mes])
+  @@index([mes])
+}

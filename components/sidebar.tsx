@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 import {
   IconeResumo,
   IconeLancamentos,
+  IconeEntradas,
   IconeContas,
   IconeParcelados,
   IconeOrcamento,
@@ -18,6 +19,7 @@ import { useAbertura } from "@/lib/use-abertura";
 const itens = [
   { href: "/", label: "Resumo", Icone: IconeResumo },
   { href: "/lancamentos", label: "Lançamentos", Icone: IconeLancamentos },
+  { href: "/entradas", label: "Entradas", Icone: IconeEntradas },
   { href: "/contas", label: "Contas fixas", Icone: IconeContas },
   { href: "/parcelados", label: "Parcelados", Icone: IconeParcelados },
   { href: "/orcamento", label: "Orçamento e limites", Icone: IconeOrcamento },
@@ -30,8 +32,8 @@ const itens = [
 const itensInferiores = [
   { href: "/", label: "Resumo", Icone: IconeResumo },
   { href: "/lancamentos", label: "Lançamentos", Icone: IconeLancamentos },
+  { href: "/entradas", label: "Entradas", Icone: IconeEntradas },
   { href: "/contas", label: "Contas", Icone: IconeContas },
-  { href: "/parcelados", label: "Parcelados", Icone: IconeParcelados },
   { href: "/metas", label: "Metas", Icone: IconeMetas },
 ];
 

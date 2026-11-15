@@ -28,6 +28,14 @@ export function sugerirCategoria(descricao: string): CategoriaChave {
   return PALPITES.find(([, padrao]) => padrao.test(texto))?.[0] ?? "OUTROS";
 }
 
+/** Tipo sugerido para uma entrada de dinheiro, pela descrição. */
+export function sugerirTipoEntrada(descricao: string): "SALARIO" | "HONORARIOS" | "EXTRA" | "OUTROS" {
+  const texto = semAcento(descricao);
+  if (/salario|folha|pro-?labore|proventos|13o/.test(texto)) return "SALARIO";
+  if (/honorario/.test(texto)) return "HONORARIOS";
+  return "OUTROS";
+}
+
 /** Aceita "1.045,00", "1045.00", "R$ 12,50", "-12,50", "(12,50)" e "12,50-". */
 export function lerNumero(bruto: string): number {
   let x = String(bruto).replace(/[R$\s"]/g, "");

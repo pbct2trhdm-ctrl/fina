@@ -9,6 +9,9 @@ import type { CategoriaChave, EscopoChave } from "@/lib/formatacao";
 
 async function apagarTudo() {
   await prisma.$transaction([
+    prisma.recebimentoEntrada.deleteMany(),
+    prisma.entradaFixa.deleteMany(),
+    prisma.entrada.deleteMany(),
     prisma.pagamentoConta.deleteMany(),
     prisma.contaFixa.deleteMany(),
     prisma.gasto.deleteMany(),
@@ -31,8 +34,13 @@ export async function apagarTodosOsDados() {
  * sistema antes de lançar os dados reais. Só roda com o banco vazio.
  */
 export async function carregarDadosDeExemplo() {
-  const [gastos, contas] = await Promise.all([prisma.gasto.count(), prisma.contaFixa.count()]);
-  if (gastos + contas > 0) throw new Error("Já existem dados; apague tudo antes de carregar o exemplo");
+  const [gastos, contas, entradas, fixas] = await Promise.all([
+    prisma.gasto.count(),
+    prisma.contaFixa.count(),
+    prisma.entrada.count(),
+    prisma.entradaFixa.count(),
+  ]);
+  if (gastos + contas + entradas + fixas > 0) throw new Error("Já existem dados; apague tudo antes de carregar o exemplo");
   await apagarTudo();
 
   const atual = mesAtual();
@@ -102,6 +110,31 @@ export async function carregarDadosDeExemplo() {
       },
     });
   }
+
+  // Salários: confirmados nos meses fechados e, no mês atual, só se o dia já passou.
+  const salarios: [string, number, number, EscopoChave][] = [
+    ["Salário", 5, 9000, "EU"],
+    ["Salário", 5, 6500, "ESPOSA"],
+  ];
+  for (const [descricao, diaRecebimento, valor, escopo] of salarios) {
+    const mesesRecebidos = [-5, -4, -3, -2, -1].map((i) => somarMeses(atual, i));
+    if (diaRecebimento <= diaHoje) mesesRecebidos.push(atual);
+    await prisma.entradaFixa.create({
+      data: {
+        descricao,
+        tipo: "SALARIO",
+        diaRecebimento,
+        valor,
+        escopo,
+        inicio,
+        recebimentos: { create: mesesRecebidos.map((mes) => ({ mes, valor })) },
+      },
+    });
+  }
+  const [anoPassado, mesPassado] = somarMeses(atual, -1).split("-").map(Number);
+  await prisma.entrada.create({
+    data: { descricao: "Reembolso de viagem", tipo: "EXTRA", valor: 480, escopo: "EU", data: new Date(Date.UTC(anoPassado, mesPassado - 1, 18)) },
+  });
 
   await prisma.compraParcelada.createMany({
     data: [

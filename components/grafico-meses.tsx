@@ -11,6 +11,7 @@ export function GraficoMeses({
   meses,
   series,
   valores,
+  entradas,
   mesAtivo,
   hrefDoMes,
 }: {
@@ -18,11 +19,14 @@ export function GraficoMeses({
   series: EscopoChave[];
   /** valores[mes][série] */
   valores: number[][];
+  /** Entradas recebidas em cada mês; aparecem como um traço sobre a coluna, no mesmo eixo. */
+  entradas?: number[];
   mesAtivo: string;
   hrefDoMes: (mes: string) => string;
 }) {
   const totais = valores.map((linha) => linha.reduce((a, b) => a + b, 0));
-  const maior = Math.max(1, ...totais);
+  const temEntradas = !!entradas && entradas.some((v) => v > 0);
+  const maior = Math.max(1, ...totais, ...(temEntradas ? entradas : []));
   const potencia = 10 ** Math.floor(Math.log10(maior));
   const teto = ([1, 1.5, 2, 3, 4, 5, 6, 8, 10].find((n) => n * potencia >= maior) ?? 10) * potencia;
 
@@ -36,17 +40,23 @@ export function GraficoMeses({
 
   return (
     <div>
-      {series.length > 1 && (
+      {(series.length > 1 || temEntradas) && (
         <div className="mb-2 flex flex-wrap justify-end gap-4 text-xs text-texto-secundario">
           {series.map((serie) => (
             <span key={serie} className="inline-flex items-center gap-1.5">
               <Bolinha escopo={serie} />
-              {LABEL_ESCOPO[serie]}
+              {series.length > 1 ? LABEL_ESCOPO[serie] : `Gastos de ${LABEL_ESCOPO[serie]}`}
             </span>
           ))}
+          {temEntradas && (
+            <span className="inline-flex items-center gap-1.5">
+              <span aria-hidden="true" className="inline-block h-0.5 w-4 rounded-full bg-texto-principal" />
+              Entradas
+            </span>
+          )}
         </div>
       )}
-      <svg viewBox={`0 0 ${L} ${A}`} width="100%" role="img" aria-label="Gasto mensal dos últimos 6 meses">
+      <svg viewBox={`0 0 ${L} ${A}`} width="100%" role="img" aria-label={temEntradas ? "Gastos e entradas dos últimos 6 meses" : "Gasto mensal dos últimos 6 meses"}>
         {[0, 1, 2, 3, 4].map((i) => {
           const v = (teto * i) / 4;
           return (
@@ -65,9 +75,10 @@ export function GraficoMeses({
           const dica =
             `${nomeMes(mes)}\n` +
             series.map((serie, j) => `${LABEL_ESCOPO[serie]}: ${formatarMoeda(valores[i][j])}`).join("\n") +
-            (series.length > 1 ? `\nTotal: ${formatarMoeda(totais[i])}` : "");
+            (series.length > 1 ? `\nTotal de gastos: ${formatarMoeda(totais[i])}` : "") +
+            (temEntradas ? `\nEntradas: ${formatarMoeda(entradas[i])}\nSaldo: ${formatarMoeda(entradas[i] - totais[i])}` : "");
           return (
-            <a key={mes} href={hrefDoMes(mes)} aria-label={`${nomeMes(mes)}: ${formatarMoeda(totais[i])}`}>
+            <a key={mes} href={hrefDoMes(mes)} aria-label={`${nomeMes(mes)}: gastos de ${formatarMoeda(totais[i])}${temEntradas ? `, entradas de ${formatarMoeda(entradas[i])}` : ""}`}>
               <title>{dica}</title>
               <rect className="fill-transparent transition-colors hover:fill-white/70" rx="10" x={esquerda + faixa * i} y={topo} width={faixa} height={altura} />
               {valores[i].map((v, j) => {
@@ -88,6 +99,21 @@ export function GraficoMeses({
                   <rect key={j} pointerEvents="none" x={x} y={y1} width={larguraBarra} height={h} fill={cor} />
                 );
               })}
+              {temEntradas && entradas[i] > 0 && (
+                <g pointerEvents="none">
+                  {/* contorno claro para o traço não se perder sobre a coluna */}
+                  <line x1={x - 7} x2={x + larguraBarra + 7} y1={y(entradas[i])} y2={y(entradas[i])} stroke="white" strokeWidth="5" strokeLinecap="round" />
+                  <line
+                    x1={x - 7}
+                    x2={x + larguraBarra + 7}
+                    y1={y(entradas[i])}
+                    y2={y(entradas[i])}
+                    stroke="var(--color-texto-principal)"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                  />
+                </g>
+              )}
               <text
                 x={x + larguraBarra / 2}
                 y={A - 8}

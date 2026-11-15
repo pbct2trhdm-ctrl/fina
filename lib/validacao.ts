@@ -1,5 +1,14 @@
 /** Leitura segura dos campos de formulário usados pelas actions. */
-import { CATEGORIAS, ESCOPOS, VISOES, type CategoriaChave, type EscopoChave, type VisaoChave } from "@/lib/formatacao";
+import {
+  CATEGORIAS,
+  ESCOPOS,
+  TIPOS_ENTRADA,
+  VISOES,
+  type CategoriaChave,
+  type EscopoChave,
+  type TipoEntradaChave,
+  type VisaoChave,
+} from "@/lib/formatacao";
 import { mesAtual, mesValido } from "@/lib/meses";
 
 export function texto(valor: FormDataEntryValue | null): string {
@@ -20,6 +29,11 @@ export function inteiro(valor: FormDataEntryValue | null, minimo: number, maximo
 export function categoria(valor: unknown): CategoriaChave {
   const chave = (valor ?? "").toString();
   return (CATEGORIAS as readonly string[]).includes(chave) ? (chave as CategoriaChave) : "OUTROS";
+}
+
+export function tipoEntrada(valor: unknown): TipoEntradaChave {
+  const chave = (valor ?? "").toString();
+  return (TIPOS_ENTRADA as readonly string[]).includes(chave) ? (chave as TipoEntradaChave) : "OUTROS";
 }
 
 export function escopo(valor: unknown): EscopoChave {

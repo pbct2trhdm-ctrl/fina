@@ -1,14 +1,16 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { lerLinhasExtrato, separarGastos, semAcento, sugerirCategoria, type LinhaExtrato } from "@/lib/extrato";
+import { lerLinhasExtrato, separarGastos, semAcento, sugerirCategoria, sugerirTipoEntrada, type LinhaExtrato } from "@/lib/extrato";
 import { SenhaDoPdfNecessaria, extrairLinhasPdf, lerLinhasDeFatura } from "@/lib/extrato-pdf";
 import { hojeIsoLocal } from "@/lib/datas";
-import { gastosNoIntervalo, importarGastos } from "@/lib/actions/importacao";
-import { CATEGORIAS, ESCOPOS, LABEL_CATEGORIA, LABEL_ESCOPO, formatarMoeda } from "@/lib/formatacao";
+import { entradasNoIntervalo, gastosNoIntervalo, importarEntradas, importarGastos } from "@/lib/actions/importacao";
+import { CATEGORIAS, ESCOPOS, LABEL_CATEGORIA, LABEL_ESCOPO, LABEL_TIPO_ENTRADA, TIPOS_ENTRADA, formatarMoeda } from "@/lib/formatacao";
 import { classeBadgeNeutro, classeBotaoPrimario, classeBotaoSecundario, classeCard, classeInput, classeInputAuto, classeLabel } from "@/lib/estilos";
 
+/** `categoria` guarda a categoria do gasto ou, no modo Entradas, o tipo da entrada. */
 type Linha = { escolhida: boolean; duplicada: boolean; data: string; descricao: string; valor: number; categoria: string; escopo: string };
+type Modo = "GASTOS" | "ENTRADAS";
 
 const chave = (data: string, valor: number, descricao: string) => `${data}|${valor.toFixed(2)}|${semAcento(descricao)}`;
 
@@ -21,24 +23,29 @@ export function ImportarExtrato() {
   const [linhas, setLinhas] = useState<Linha[]>([]);
   const [ignorados, setIgnorados] = useState(0);
   const [escopo, setEscopo] = useState<string>("CASA");
+  // O que trazer do arquivo: as saídas (gastos) ou o dinheiro que entrou.
+  const [modo, setModo] = useState<Modo>("GASTOS");
   const [erro, setErro] = useState("");
   const [lendo, setLendo] = useState(false);
   const [enviando, iniciarEnvio] = useTransition();
 
-  async function carregar(brutas: LinhaExtrato[], nome: string, inverter: boolean, pdf: boolean) {
+  async function carregar(brutas: LinhaExtrato[], nome: string, inverter: boolean, pdf: boolean, modoAtual: Modo = modo) {
     setErro("");
     setLendo(true);
     try {
-      const { gastos, ignorados: fora } = separarGastos(brutas, inverter);
+      // Entradas são o lado que a separação de gastos descarta: basta inverter a escolha.
+      const { gastos, ignorados: fora } = separarGastos(brutas, inverter !== (modoAtual === "ENTRADAS"));
       // Lançamentos já gravados no mesmo intervalo, para marcar os repetidos.
-      const existentes = gastos.length ? await gastosNoIntervalo(gastos[gastos.length - 1].data, gastos[0].data) : [];
+      const buscar = modoAtual === "ENTRADAS" ? entradasNoIntervalo : gastosNoIntervalo;
+      const existentes = gastos.length ? await buscar(gastos[gastos.length - 1].data, gastos[0].data) : [];
       const vistos = new Set(existentes.map((g) => chave(g.data, g.valor, g.descricao)));
       setOrigem({ brutas, nome, inverter, pdf });
       setIgnorados(fora);
       setLinhas(
         gastos.map((g) => {
           const duplicada = vistos.has(chave(g.data, g.valor, g.descricao));
-          return { ...g, escolhida: !duplicada, duplicada, categoria: sugerirCategoria(g.descricao), escopo };
+          const classe = modoAtual === "ENTRADAS" ? sugerirTipoEntrada(g.descricao) : sugerirCategoria(g.descricao);
+          return { ...g, escolhida: !duplicada, duplicada, categoria: classe, escopo };
         })
       );
     } catch {
@@ -100,6 +107,11 @@ export function ImportarExtrato() {
   const alterar = (indice: number, mudanca: Partial<Linha>) =>
     setLinhas((atuais) => atuais.map((linha, i) => (i === indice ? { ...linha, ...mudanca } : linha)));
 
+  function trocarModo(novo: Modo) {
+    setModo(novo);
+    if (origem) carregar(origem.brutas, origem.nome, origem.inverter, origem.pdf, novo);
+  }
+
   function trocarEscopo(novo: string) {
     setEscopo(novo);
     setLinhas((atuais) => atuais.map((linha) => ({ ...linha, escopo: novo })));
@@ -112,7 +124,11 @@ export function ImportarExtrato() {
     setErro("");
     iniciarEnvio(async () => {
       try {
-        await importarGastos(escolhidas.map(({ data, descricao, valor, categoria, escopo: de }) => ({ data, descricao, valor, categoria, escopo: de })));
+        if (modo === "ENTRADAS") {
+          await importarEntradas(escolhidas.map(({ data, descricao, valor, categoria, escopo: de }) => ({ data, descricao, valor, tipo: categoria, escopo: de })));
+        } else {
+          await importarGastos(escolhidas.map(({ data, descricao, valor, categoria, escopo: de }) => ({ data, descricao, valor, categoria, escopo: de })));
+        }
       } catch (e) {
         // redirect() do Next sai por exceção própria; qualquer outra é erro de verdade.
         if (e instanceof Error && e.message === "NEXT_REDIRECT") throw e;
@@ -124,16 +140,25 @@ export function ImportarExtrato() {
 
   return (
     <div className="space-y-4">
-      <div className={`${classeCard} grid grid-cols-1 gap-4 md:grid-cols-2`}>
-        <div>
+      <div className={`${classeCard} grid grid-cols-1 gap-4 md:grid-cols-4`}>
+        <div className="md:col-span-2">
           <label className={classeLabel} htmlFor="arquivo">
             Fatura do cartão ou extrato (PDF, CSV ou OFX)
           </label>
           <input id="arquivo" type="file" accept=".pdf,.csv,.ofx,.txt,.tsv,application/pdf" onChange={aoEscolherArquivo} className={classeInput} />
         </div>
         <div>
+          <label className={classeLabel} htmlFor="modo">
+            O que importar
+          </label>
+          <select id="modo" value={modo} onChange={(e) => trocarModo(e.target.value as Modo)} className={classeInput}>
+            <option value="GASTOS">Gastos (saídas)</option>
+            <option value="ENTRADAS">Entradas de dinheiro</option>
+          </select>
+        </div>
+        <div>
           <label className={classeLabel} htmlFor="escopo-padrao">
-            De quem são os gastos
+            De quem são
           </label>
           <select id="escopo-padrao" value={escopo} onChange={(e) => trocarEscopo(e.target.value)} className={classeInput}>
             {ESCOPOS.map((opcao) => (
@@ -143,7 +168,7 @@ export function ImportarExtrato() {
             ))}
           </select>
         </div>
-        <p className="text-sm text-texto-secundario md:col-span-2">
+        <p className="text-sm text-texto-secundario md:col-span-4">
           O arquivo é lido neste navegador; só as linhas que você escolher são gravadas. Confira e ajuste antes de importar.
         </p>
       </div>
@@ -190,7 +215,7 @@ export function ImportarExtrato() {
 
       {origem && !lendo && linhas.length === 0 && (
         <div className="rounded-2xl border border-dashed border-slate-300 bg-white/50 p-8 backdrop-blur-md text-center text-sm text-texto-secundario">
-          Nenhum gasto encontrado em “{origem.nome}”.{" "}
+          {modo === "ENTRADAS" ? "Nenhuma entrada encontrada" : "Nenhum gasto encontrado"} em “{origem.nome}”.{" "}
           {origem.pdf
             ? "Não achei linhas com data, descrição e valor neste PDF; se o banco oferecer, tente a fatura em CSV ou OFX."
             : "O arquivo precisa ter data, descrição e valor de cada lançamento."}
@@ -201,13 +226,16 @@ export function ImportarExtrato() {
         <>
           <p className="text-sm text-texto-secundario">
             <strong className="text-texto-principal">
-              {linhas.length} {linhas.length === 1 ? "gasto encontrado" : "gastos encontrados"}
+              {linhas.length}{" "}
+              {modo === "ENTRADAS"
+                ? linhas.length === 1 ? "entrada encontrada" : "entradas encontradas"
+                : linhas.length === 1 ? "gasto encontrado" : "gastos encontrados"}
             </strong>{" "}
             em “{origem.nome}”
             {ignorados > 0 && (
               <>
                 {" "}
-                · {ignorados} de sinal contrário {ignorados === 1 ? "ignorado" : "ignorados"}, como entradas e pagamentos (
+                · {ignorados} de sinal contrário {ignorados === 1 ? "ignorado" : "ignorados"}, {modo === "ENTRADAS" ? "como gastos e pagamentos" : "como entradas e pagamentos"} (
                 <button type="button" className="font-semibold text-accent hover:underline" onClick={() => carregar(origem.brutas, origem.nome, !origem.inverter, origem.pdf)}>
                   trocar
                 </button>
@@ -229,7 +257,7 @@ export function ImportarExtrato() {
                   <th className="px-3 py-3" />
                   <th className="px-3 py-3 font-semibold">Data</th>
                   <th className="px-3 py-3 font-semibold">Descrição</th>
-                  <th className="px-3 py-3 font-semibold">Categoria</th>
+                  <th className="px-3 py-3 font-semibold">{modo === "ENTRADAS" ? "Tipo" : "Categoria"}</th>
                   <th className="px-3 py-3 font-semibold">De quem</th>
                   <th className="px-3 py-3 text-right font-semibold">Valor</th>
                 </tr>
@@ -254,10 +282,15 @@ export function ImportarExtrato() {
                       {linha.duplicada && <span className={`${classeBadgeNeutro} ml-2`}>já lançado</span>}
                     </td>
                     <td className="px-3 py-2">
-                      <select value={linha.categoria} onChange={(e) => alterar(i, { categoria: e.target.value })} aria-label="Categoria" className={`${classeInputAuto} py-1`}>
-                        {CATEGORIAS.map((categoria) => (
+                      <select
+                        value={linha.categoria}
+                        onChange={(e) => alterar(i, { categoria: e.target.value })}
+                        aria-label={modo === "ENTRADAS" ? "Tipo" : "Categoria"}
+                        className={`${classeInputAuto} py-1`}
+                      >
+                        {(modo === "ENTRADAS" ? TIPOS_ENTRADA : CATEGORIAS).map((categoria) => (
                           <option key={categoria} value={categoria}>
-                            {LABEL_CATEGORIA[categoria]}
+                            {modo === "ENTRADAS" ? LABEL_TIPO_ENTRADA[categoria] : LABEL_CATEGORIA[categoria]}
                           </option>
                         ))}
                       </select>
@@ -288,7 +321,9 @@ export function ImportarExtrato() {
               disabled={escolhidas.length === 0 || enviando}
               className={`${classeBotaoPrimario} disabled:cursor-not-allowed disabled:opacity-60`}
             >
-              {enviando ? "Importando…" : `Importar ${escolhidas.length} ${escolhidas.length === 1 ? "gasto" : "gastos"}`}
+              {enviando
+                ? "Importando…"
+                : `Importar ${escolhidas.length} ${modo === "ENTRADAS" ? (escolhidas.length === 1 ? "entrada" : "entradas") : escolhidas.length === 1 ? "gasto" : "gastos"}`}
             </button>
           </div>
         </>

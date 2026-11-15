@@ -55,6 +55,16 @@ export const LABEL_CATEGORIA: Record<string, string> = {
   OUTROS: "Outros",
 };
 
+export const TIPOS_ENTRADA = ["SALARIO", "HONORARIOS", "EXTRA", "OUTROS"] as const;
+export type TipoEntradaChave = (typeof TIPOS_ENTRADA)[number];
+
+export const LABEL_TIPO_ENTRADA: Record<string, string> = {
+  SALARIO: "Salário",
+  HONORARIOS: "Honorários",
+  EXTRA: "Renda extra",
+  OUTROS: "Outros",
+};
+
 export const LABEL_TIPO_LANCAMENTO: Record<string, string> = {
   GASTO: "Gasto",
   CONTA: "Conta fixa",

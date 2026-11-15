@@ -16,6 +16,12 @@ export function Selo({ tom, children }: { tom: Tom; children: React.ReactNode })
   );
 }
 
+export const SELO_SITUACAO_ENTRADA: Record<string, { tom: Tom; texto: string }> = {
+  RECEBIDA: { tom: "tranquilo", texto: "✓ Recebida" },
+  A_CONFIRMAR: { tom: "atencao", texto: "● A confirmar" },
+  PREVISTA: { tom: "neutro", texto: "Prevista" },
+};
+
 export const SELO_SITUACAO_CONTA: Record<string, { tom: Tom; texto: string }> = {
   PAGA: { tom: "tranquilo", texto: "✓ Paga" },
   VENCIDA: { tom: "critico", texto: "⚠ Vencida" },

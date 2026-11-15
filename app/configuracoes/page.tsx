@@ -4,13 +4,15 @@ import { BotaoEnvio } from "@/components/botao-envio";
 import { classeBotaoPerigo, classeBotaoSecundario, classeCard, classeTituloPagina, classeTituloSecao } from "@/lib/estilos";
 
 export default async function ConfiguracoesPage() {
-  const [gastos, contas, compras, metas] = await Promise.all([
+  const [gastos, contas, compras, metas, entradas, entradasFixas] = await Promise.all([
     prisma.gasto.count(),
     prisma.contaFixa.count(),
     prisma.compraParcelada.count(),
     prisma.meta.count(),
+    prisma.entrada.count(),
+    prisma.entradaFixa.count(),
   ]);
-  const vazio = gastos + contas + compras === 0;
+  const vazio = gastos + contas + compras + entradas + entradasFixas === 0;
 
   return (
     <div className="max-w-3xl">
@@ -19,7 +21,8 @@ export default async function ConfiguracoesPage() {
       <section className={`${classeCard} mb-6`}>
         <h2 className={`${classeTituloSecao} mb-1`}>Dados gravados</h2>
         <p className="text-sm text-texto-secundario">
-          {gastos} gastos avulsos · {contas} contas fixas · {compras} compras parceladas · {metas} metas. Tudo fica no arquivo{" "}
+          {gastos} gastos avulsos · {contas} contas fixas · {compras} compras parceladas · {entradas} entradas avulsas · {entradasFixas}{" "}
+          entradas fixas · {metas} metas. Tudo fica no arquivo{" "}
           <code>dev.db</code>, na pasta do sistema neste computador.
         </p>
       </section>
@@ -49,7 +52,7 @@ export default async function ConfiguracoesPage() {
       <section className={`${classeCard} border-critico/30`}>
         <h2 className={`${classeTituloSecao} mb-1`}>Apagar todos os dados</h2>
         <p className="mb-3 text-sm text-texto-secundario">
-          Remove gastos, contas, parcelados, orçamentos, limites, reserva e metas. Não tem volta: faça uma cópia de segurança antes.
+          Remove gastos, entradas, contas, parcelados, orçamentos, limites, reserva e metas. Não tem volta: faça uma cópia de segurança antes.
         </p>
         <form action={apagarTodosOsDados}>
           <BotaoEnvio

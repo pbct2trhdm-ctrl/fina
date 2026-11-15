@@ -2,6 +2,8 @@ import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import {
   contasDoMes,
+  entradasFixasDoMes,
+  entradasPorMes,
   lancamentosPorMes,
   limitesDaVisao,
   mediaGastosRecentes,
@@ -54,8 +56,14 @@ export default async function ResumoPage({
   const atual = mesAtual();
   const meses = Array.from({ length: 6 }, (_, i) => somarMeses(mes, i - 5));
 
-  const [vazio, porMes, contas, parcelas, mapaOrcamentos, limites, reserva, metas, media] = await Promise.all([
-    Promise.all([prisma.gasto.count(), prisma.contaFixa.count(), prisma.compraParcelada.count()]).then(
+  const [vazio, porMes, contas, parcelas, mapaOrcamentos, limites, reserva, metas, media, entradasMeses, entradasFixas] = await Promise.all([
+    Promise.all([
+      prisma.gasto.count(),
+      prisma.contaFixa.count(),
+      prisma.compraParcelada.count(),
+      prisma.entrada.count(),
+      prisma.entradaFixa.count(),
+    ]).then(
       (totais) => totais.every((total) => total === 0)
     ),
     lancamentosPorMes(meses),
@@ -66,6 +74,8 @@ export default async function ResumoPage({
     prisma.reserva.findUnique({ where: { id: 1 } }),
     prisma.meta.findMany({ orderBy: { criadoEm: "asc" } }),
     mediaGastosRecentes(),
+    entradasPorMes(meses),
+    entradasFixasDoMes(mes),
   ]);
 
   if (vazio) {
@@ -93,6 +103,9 @@ export default async function ResumoPage({
   const aPagar = somar(contasVisao.filter((conta) => conta.situacao !== "PAGA"));
   const livre = orcamento - total - aPagar;
   const parcelasVisao = naVisao(parcelas, visao);
+  const entradasRecebidas = somar(naVisao(entradasMeses[mes], visao));
+  const entradasAReceber = somar(naVisao(entradasFixas, visao).filter((fixa) => fixa.situacao !== "RECEBIDA"));
+  const saldoDoMes = entradasRecebidas - total;
   const aqui = (extras: { visao?: string; mes?: string } = {}) => montarHref("/", { visao, mes, ...extras });
 
   // Gasto por categoria (categorias com limite aparecem mesmo sem gasto).
@@ -104,6 +117,7 @@ export default async function ResumoPage({
 
   const series = visao === "TODOS" ? [...ESCOPOS] : [visao];
   const valoresGrafico = meses.map((m) => series.map((serie) => somar(porMes[m].filter((item) => item.escopo === serie))));
+  const entradasGrafico = meses.map((m) => somar(naVisao(entradasMeses[m], visao)));
 
   let recado: React.ReactNode;
   if (mes === atual) {
@@ -264,11 +278,58 @@ export default async function ResumoPage({
           )}
         </section>
 
+        {/* Balanço do mês: o que entrou contra o que saiu */}
+        <section className={`${classeCard} lg:col-span-12 ${visao === "TODOS" ? "lg:order-2" : ""}`}>
+          <div className="mb-3 flex items-center justify-between">
+            <h2 className="text-sm text-texto-secundario">Balanço do mês</h2>
+            <Link href={montarHref("/entradas", { visao, mes })} className={linkDiscreto}>
+              Ver entradas
+            </Link>
+          </div>
+          <dl className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+            <div>
+              <dt className="text-xs text-texto-secundario">Entradas recebidas</dt>
+              <dd className="text-2xl font-semibold tracking-tight">{formatarMoeda(entradasRecebidas)}</dd>
+              <dd className="text-xs text-texto-secundario">
+                {entradasAReceber > 0 ? `mais ${formatarMoeda(entradasAReceber)} a confirmar` : "nada pendente de confirmação"}
+              </dd>
+            </div>
+            <div>
+              <dt className="text-xs text-texto-secundario">Saídas</dt>
+              <dd className="text-2xl font-semibold tracking-tight">{formatarMoeda(total)}</dd>
+              <dd className="text-xs text-texto-secundario">
+                {aPagar > 0 ? `mais ${formatarMoeda(aPagar)} em contas a pagar` : "nenhuma conta em aberto"}
+              </dd>
+            </div>
+            <div>
+              <dt className="text-xs text-texto-secundario">Saldo do mês</dt>
+              <dd className="text-2xl font-semibold tracking-tight">
+                {saldoDoMes < 0 ? "−" : ""}
+                {formatarMoeda(Math.abs(saldoDoMes))}
+              </dd>
+              <dd className="text-xs">
+                {saldoDoMes < 0 ? (
+                  <strong className="text-critico">▲ saídas acima das entradas</strong>
+                ) : (
+                  <span className="text-texto-secundario">entradas recebidas menos saídas</span>
+                )}
+              </dd>
+            </div>
+          </dl>
+        </section>
+
         {/* Últimos 6 meses */}
         <section className={`${classeCard} ${visao === "TODOS" ? "lg:col-span-7 lg:order-3" : "lg:col-span-12"}`}>
           <h2 className="mb-1 text-sm text-texto-secundario">Últimos 6 meses</h2>
           <div className={visao === "TODOS" ? "" : "mx-auto max-w-3xl"}>
-            <GraficoMeses meses={meses} series={series} valores={valoresGrafico} mesAtivo={mes} hrefDoMes={(m) => aqui({ mes: m })} />
+            <GraficoMeses
+              meses={meses}
+              series={series}
+              valores={valoresGrafico}
+              entradas={entradasGrafico}
+              mesAtivo={mes}
+              hrefDoMes={(m) => aqui({ mes: m })}
+            />
           </div>
         </section>
 

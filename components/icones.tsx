@@ -28,6 +28,15 @@ export function IconeLancamentos(props: IconeProps) {
   );
 }
 
+export function IconeEntradas(props: IconeProps) {
+  return (
+    <Svg {...props}>
+      <path d="M12 19V7m0 0-4 4m4-4 4 4" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M5 4.5h14" strokeLinecap="round" />
+    </Svg>
+  );
+}
+
 export function IconeContas(props: IconeProps) {
   return (
     <Svg {...props}>
