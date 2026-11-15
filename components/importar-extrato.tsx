@@ -1,17 +1,23 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { lerExtrato, semAcento, sugerirCategoria } from "@/lib/extrato";
+import { lerLinhasExtrato, separarGastos, semAcento, sugerirCategoria, type LinhaExtrato } from "@/lib/extrato";
+import { SenhaDoPdfNecessaria, extrairLinhasPdf, lerLinhasDeFatura } from "@/lib/extrato-pdf";
+import { hojeIsoLocal } from "@/lib/datas";
 import { gastosNoIntervalo, importarGastos } from "@/lib/actions/importacao";
 import { CATEGORIAS, ESCOPOS, LABEL_CATEGORIA, LABEL_ESCOPO, formatarMoeda } from "@/lib/formatacao";
-import { classeBadgeNeutro, classeBotaoPrimario, classeCard, classeInput, classeInputAuto, classeLabel } from "@/lib/estilos";
+import { classeBadgeNeutro, classeBotaoPrimario, classeBotaoSecundario, classeCard, classeInput, classeInputAuto, classeLabel } from "@/lib/estilos";
 
 type Linha = { escolhida: boolean; duplicada: boolean; data: string; descricao: string; valor: number; categoria: string; escopo: string };
 
 const chave = (data: string, valor: number, descricao: string) => `${data}|${valor.toFixed(2)}|${semAcento(descricao)}`;
 
 export function ImportarExtrato() {
-  const [origem, setOrigem] = useState<{ texto: string; nome: string; inverter: boolean } | null>(null);
+  // Lançamentos lidos do arquivo, com o sinal original — guardados para o botão "trocar".
+  const [origem, setOrigem] = useState<{ brutas: LinhaExtrato[]; nome: string; inverter: boolean; pdf: boolean } | null>(null);
+  // PDF protegido aguardando a senha.
+  const [pdfComSenha, setPdfComSenha] = useState<{ bytes: Uint8Array; nome: string; errada: boolean } | null>(null);
+  const [senha, setSenha] = useState("");
   const [linhas, setLinhas] = useState<Linha[]>([]);
   const [ignorados, setIgnorados] = useState(0);
   const [escopo, setEscopo] = useState<string>("CASA");
@@ -19,15 +25,15 @@ export function ImportarExtrato() {
   const [lendo, setLendo] = useState(false);
   const [enviando, iniciarEnvio] = useTransition();
 
-  async function carregar(texto: string, nome: string, inverter: boolean) {
+  async function carregar(brutas: LinhaExtrato[], nome: string, inverter: boolean, pdf: boolean) {
     setErro("");
     setLendo(true);
     try {
-      const { gastos, ignorados: fora } = lerExtrato(texto, inverter);
+      const { gastos, ignorados: fora } = separarGastos(brutas, inverter);
       // Lançamentos já gravados no mesmo intervalo, para marcar os repetidos.
       const existentes = gastos.length ? await gastosNoIntervalo(gastos[gastos.length - 1].data, gastos[0].data) : [];
       const vistos = new Set(existentes.map((g) => chave(g.data, g.valor, g.descricao)));
-      setOrigem({ texto, nome, inverter });
+      setOrigem({ brutas, nome, inverter, pdf });
       setIgnorados(fora);
       setLinhas(
         gastos.map((g) => {
@@ -42,10 +48,45 @@ export function ImportarExtrato() {
     }
   }
 
+  async function carregarPdf(bytes: Uint8Array, nome: string, senhaInformada?: string) {
+    setErro("");
+    setLendo(true);
+    try {
+      const linhas = await extrairLinhasPdf(bytes, senhaInformada);
+      setPdfComSenha(null);
+      setSenha("");
+      if (linhas.join("").trim().length === 0) {
+        setOrigem(null);
+        setLinhas([]);
+        setErro("Este PDF não tem texto (parece uma imagem digitalizada). Baixe a fatura em PDF direto do app ou site do banco.");
+        return;
+      }
+      await carregar(lerLinhasDeFatura(linhas, hojeIsoLocal()), nome, false, true);
+    } catch (e) {
+      if (e instanceof SenhaDoPdfNecessaria) {
+        setOrigem(null);
+        setLinhas([]);
+        setPdfComSenha({ bytes, nome, errada: e.senhaErrada });
+      } else {
+        setErro("Não foi possível ler o PDF.");
+      }
+    } finally {
+      setLendo(false);
+    }
+  }
+
   async function aoEscolherArquivo(evento: React.ChangeEvent<HTMLInputElement>) {
     const arquivo = evento.target.files?.[0];
     if (!arquivo) return;
     const bytes = await arquivo.arrayBuffer();
+    setPdfComSenha(null);
+    setSenha("");
+    // PDF começa com "%PDF"; vale mais que a extensão do arquivo.
+    const inicio = new Uint8Array(bytes.slice(0, 4));
+    if (arquivo.name.toLowerCase().endsWith(".pdf") || String.fromCharCode(...inicio) === "%PDF") {
+      await carregarPdf(new Uint8Array(bytes), arquivo.name);
+      return;
+    }
     let texto: string;
     try {
       texto = new TextDecoder("utf-8", { fatal: true }).decode(bytes);
@@ -53,7 +94,7 @@ export function ImportarExtrato() {
       // Bancos brasileiros ainda exportam em Latin-1/Windows-1252.
       texto = new TextDecoder("windows-1252").decode(bytes);
     }
-    await carregar(texto, arquivo.name, false);
+    await carregar(lerLinhasExtrato(texto), arquivo.name, false, false);
   }
 
   const alterar = (indice: number, mudanca: Partial<Linha>) =>
@@ -86,9 +127,9 @@ export function ImportarExtrato() {
       <div className={`${classeCard} grid grid-cols-1 gap-4 md:grid-cols-2`}>
         <div>
           <label className={classeLabel} htmlFor="arquivo">
-            Arquivo do banco ou do cartão (CSV ou OFX)
+            Fatura do cartão ou extrato (PDF, CSV ou OFX)
           </label>
-          <input id="arquivo" type="file" accept=".csv,.ofx,.txt,.tsv" onChange={aoEscolherArquivo} className={classeInput} />
+          <input id="arquivo" type="file" accept=".pdf,.csv,.ofx,.txt,.tsv,application/pdf" onChange={aoEscolherArquivo} className={classeInput} />
         </div>
         <div>
           <label className={classeLabel} htmlFor="escopo-padrao">
@@ -108,15 +149,51 @@ export function ImportarExtrato() {
       </div>
 
       {erro && (
-        <p role="alert" className="rounded-md border border-critico/30 bg-critico-fundo px-3 py-2 text-sm text-critico">
+        <p role="alert" className="rounded-xl border border-critico/30 bg-critico-fundo px-3 py-2 text-sm text-critico">
           ⚠ {erro}
         </p>
       )}
       {lendo && <p className="text-sm text-texto-secundario">Lendo o arquivo…</p>}
 
+      {pdfComSenha && !lendo && (
+        <form
+          className={`${classeCard} flex flex-wrap items-end gap-3`}
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (senha) carregarPdf(pdfComSenha.bytes, pdfComSenha.nome, senha);
+          }}
+        >
+          <div className="min-w-[14rem] flex-1">
+            <label className={classeLabel} htmlFor="senha-pdf">
+              Senha do PDF “{pdfComSenha.nome}”
+            </label>
+            <input
+              id="senha-pdf"
+              type="password"
+              autoComplete="off"
+              value={senha}
+              onChange={(e) => setSenha(e.target.value)}
+              className={classeInput}
+              aria-describedby="senha-pdf-ajuda"
+            />
+            <p id="senha-pdf-ajuda" className={`mt-1 text-xs ${pdfComSenha.errada ? "font-semibold text-critico" : "text-texto-secundario"}`}>
+              {pdfComSenha.errada
+                ? "⚠ Senha incorreta. Tente de novo."
+                : "A fatura é protegida. O banco informa a senha no e-mail da fatura (costuma ser parte do CPF). Ela é usada só para abrir o arquivo neste navegador e não é gravada."}
+            </p>
+          </div>
+          <button type="submit" disabled={!senha} className={`${classeBotaoSecundario} disabled:cursor-not-allowed disabled:opacity-60`}>
+            Abrir PDF
+          </button>
+        </form>
+      )}
+
       {origem && !lendo && linhas.length === 0 && (
-        <div className="rounded-lg border border-dashed border-slate-300 bg-superficie/60 p-8 text-center text-sm text-texto-secundario">
-          Nenhum gasto encontrado em “{origem.nome}”. O arquivo precisa ter data, descrição e valor de cada lançamento.
+        <div className="rounded-2xl border border-dashed border-slate-300 bg-white/50 p-8 backdrop-blur-md text-center text-sm text-texto-secundario">
+          Nenhum gasto encontrado em “{origem.nome}”.{" "}
+          {origem.pdf
+            ? "Não achei linhas com data, descrição e valor neste PDF; se o banco oferecer, tente a fatura em CSV ou OFX."
+            : "O arquivo precisa ter data, descrição e valor de cada lançamento."}
         </div>
       )}
 
@@ -131,7 +208,7 @@ export function ImportarExtrato() {
               <>
                 {" "}
                 · {ignorados} de sinal contrário {ignorados === 1 ? "ignorado" : "ignorados"}, como entradas e pagamentos (
-                <button type="button" className="font-semibold text-accent hover:underline" onClick={() => carregar(origem.texto, origem.nome, !origem.inverter)}>
+                <button type="button" className="font-semibold text-accent hover:underline" onClick={() => carregar(origem.brutas, origem.nome, !origem.inverter, origem.pdf)}>
                   trocar
                 </button>
                 )
@@ -145,10 +222,10 @@ export function ImportarExtrato() {
             )}
           </p>
 
-          <div className="max-h-[26rem] overflow-auto rounded-xl border border-slate-200 bg-superficie shadow-xs">
+          <div className="vidro max-h-[26rem] overflow-auto rounded-2xl">
             <table className="w-full text-sm">
-              <thead className="sticky top-0 bg-superficie">
-                <tr className="border-b border-slate-200 text-left text-xs uppercase tracking-wide text-texto-secundario">
+              <thead className="sticky top-0 z-10 bg-white/85 backdrop-blur-md">
+                <tr className="border-b border-slate-200/70 text-left text-xs uppercase tracking-wide text-texto-secundario">
                   <th className="px-3 py-3" />
                   <th className="px-3 py-3 font-semibold">Data</th>
                   <th className="px-3 py-3 font-semibold">Descrição</th>
@@ -159,7 +236,7 @@ export function ImportarExtrato() {
               </thead>
               <tbody>
                 {linhas.map((linha, i) => (
-                  <tr key={i} className="border-b border-slate-100 last:border-0">
+                  <tr key={i} className="border-b border-slate-200/50 last:border-0">
                     <td className="px-3 py-2">
                       <input
                         type="checkbox"

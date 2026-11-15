@@ -22,9 +22,12 @@ export function BarraProgresso({
     <div
       role="img"
       aria-label={`${rotulo}: ${Math.round(total > 0 ? (valor / total) * 100 : 0)}%`}
-      className={`w-full overflow-hidden rounded-full bg-trilho ${fina ? "h-1.5" : "h-2"}`}
+      className={`w-full overflow-hidden rounded-full bg-trilho shadow-[inset_0_1px_1px_rgb(15_23_42/0.06)] ${fina ? "h-1.5" : "h-2.5"}`}
     >
-      <div className={`h-full rounded-full ${estourou ? "bg-critico" : "bg-accent"}`} style={{ width: `${percentual}%` }} />
+      <div
+        className={`animar-barra h-full rounded-full ${estourou ? "bg-critico" : "bg-linear-to-r from-accent to-sky-400"}`}
+        style={{ width: `${percentual}%` }}
+      />
     </div>
   );
 }

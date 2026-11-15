@@ -4,7 +4,7 @@ const CLASSES: Record<Tom, string> = {
   critico: "border-critico/30 bg-critico-fundo text-critico",
   atencao: "border-atencao/30 bg-atencao-fundo text-atencao",
   tranquilo: "border-tranquilo/30 bg-tranquilo-fundo text-tranquilo",
-  neutro: "border-borda-suave bg-slate-100 text-texto-secundario",
+  neutro: "border-slate-200/80 bg-white/60 text-texto-secundario",
 };
 
 /** Selo de situação: a cor nunca vai sozinha, sempre com texto (e ícone quando é alerta). */

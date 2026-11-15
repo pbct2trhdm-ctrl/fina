@@ -1,6 +1,7 @@
 /**
- * Leitura de extratos de banco/cartão em CSV ou OFX. Roda no navegador: o
- * arquivo não é enviado ao servidor, só as linhas escolhidas na revisão.
+ * Leitura de extratos de banco/cartão em CSV ou OFX (PDF: lib/extrato-pdf.ts).
+ * Roda no navegador: o arquivo não é enviado ao servidor, só as linhas
+ * escolhidas na revisão.
  */
 import type { CategoriaChave } from "@/lib/formatacao";
 
@@ -128,14 +129,18 @@ function lerOfx(texto: string): LinhaExtrato[] {
   return linhas;
 }
 
+/** Lançamentos de um CSV ou OFX, com o sinal original (negativo = saída, em extrato de conta). */
+export function lerLinhasExtrato(texto: string): LinhaExtrato[] {
+  return /<STMTTRN>/i.test(texto) ? lerOfx(texto) : lerCsv(texto);
+}
+
 /**
- * Lê o extrato e separa os gastos do resto. Gasto é o sinal mais frequente no
- * arquivo: negativo em extrato de conta, positivo em fatura de cartão. O que
- * tem o sinal contrário (salário, pagamento da fatura) é ignorado; `inverter`
- * troca a escolha quando o palpite erra.
+ * Separa os gastos do resto. Gasto é o sinal mais frequente no arquivo:
+ * negativo em extrato de conta, positivo em fatura de cartão. O que tem o
+ * sinal contrário (salário, pagamento da fatura) é ignorado; `inverter` troca
+ * a escolha quando o palpite erra.
  */
-export function lerExtrato(texto: string, inverter = false): { gastos: LinhaExtrato[]; ignorados: number } {
-  const linhas = /<STMTTRN>/i.test(texto) ? lerOfx(texto) : lerCsv(texto);
+export function separarGastos(linhas: LinhaExtrato[], inverter = false): { gastos: LinhaExtrato[]; ignorados: number } {
   const negativos = linhas.filter((l) => l.valor < 0).length;
   const positivos = linhas.filter((l) => l.valor > 0).length;
   const gastoEhNegativo = (negativos >= positivos) !== inverter;

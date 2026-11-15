@@ -159,11 +159,11 @@ export default async function ResumoPage({
         <SeletorVisao base="/" visao={visao} mes={mes} />
       </div>
 
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-12">
+      <div className="animar-cascata grid grid-cols-1 gap-4 lg:grid-cols-12">
         {/* Gasto no mês */}
-        <section className={`${classeCard} border-accent/60 lg:col-span-5`}>
+        <section className="vidro-destaque rounded-2xl p-5 lg:col-span-5">
           <h2 className="mb-2 text-sm text-texto-secundario">Gasto no mês</h2>
-          <p className="text-3xl font-semibold tracking-tight">
+          <p className="text-4xl font-bold tracking-tight">
             {formatarMoeda(total)}{" "}
             <span className="text-sm font-normal text-texto-secundario">/ {formatarMoedaCheia(orcamento)}</span>
           </p>
@@ -171,7 +171,7 @@ export default async function ResumoPage({
             <BarraProgresso valor={total} total={orcamento} alertaAoEstourar rotulo="Gasto sobre o orçamento" />
           </div>
           <p className="text-sm text-texto-secundario">{recado}</p>
-          <dl className="mt-4 grid grid-cols-3 gap-3 border-t border-borda-suave pt-4">
+          <dl className="mt-4 grid grid-cols-3 gap-3 border-t border-accent/15 pt-4">
             <div>
               <dt className="text-xs text-texto-secundario">Contas a pagar</dt>
               <dd className="font-semibold">{formatarMoeda(aPagar)}</dd>
@@ -202,7 +202,7 @@ export default async function ResumoPage({
                   <li key={escopo}>
                     <Link
                       href={aqui({ visao: escopo })}
-                      className="grid grid-cols-[5.5rem_1fr_auto] items-center gap-3 rounded-md px-1 py-3 hover:bg-fundo"
+                      className="grid grid-cols-[5.5rem_1fr_auto] items-center gap-3 rounded-xl px-2 py-3 hover:bg-white/70"
                     >
                       <span className="inline-flex items-center gap-2 font-semibold">
                         <Bolinha escopo={escopo} />
@@ -241,7 +241,7 @@ export default async function ResumoPage({
                     <span>{LABEL_CATEGORIA[categoria]}</span>
                     <span>
                       <span
-                        className={`block h-2 rounded-full ${estourou ? "bg-critico" : "bg-slate-400"}`}
+                        className={`animar-barra block h-2 rounded-full ${estourou ? "bg-critico" : "bg-slate-400/80"}`}
                         style={{ width: `${(valor / maiorCategoria) * 100}%`, minWidth: valor > 0 ? 3 : 0 }}
                       />
                     </span>

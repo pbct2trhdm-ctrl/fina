@@ -1,16 +1,10 @@
 import type { Metadata } from "next";
-import { Inter, Cinzel } from "next/font/google";
+import { Inter } from "next/font/google";
 import "./globals.css";
 import { Sidebar } from "@/components/sidebar";
 
 const inter = Inter({
   variable: "--font-inter",
-  subsets: ["latin"],
-});
-
-const cinzel = Cinzel({
-  variable: "--font-cinzel",
-  weight: ["600", "700"],
   subsets: ["latin"],
 });
 
@@ -29,10 +23,10 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="pt-BR" className={`${inter.variable} ${cinzel.variable} h-full antialiased`}>
-      <body className="min-h-full flex flex-col md:flex-row bg-fundo text-texto-principal font-sans">
+    <html lang="pt-BR" className={`${inter.variable} h-full antialiased`}>
+      <body className="min-h-full flex flex-col md:flex-row text-texto-principal font-sans">
         <Sidebar />
-        <main className="flex-1 min-w-0 px-4 pt-5 pb-24 md:p-8">{children}</main>
+        <main className="flex-1 min-w-0 px-4 pt-5 pb-28 md:px-8 md:py-7">{children}</main>
       </body>
     </html>
   );

@@ -15,11 +15,11 @@ export function montarHref(base: string, parametros: { visao?: string; mes?: str
   return `${base}${query ? `?${query}` : ""}`;
 }
 
-export function Bolinha({ escopo }: { escopo: string }) {
+export function Bolinha({ escopo, anel = false }: { escopo: string; anel?: boolean }) {
   return (
     <span
       aria-hidden="true"
-      className="inline-block h-2.5 w-2.5 shrink-0 rounded-full"
+      className={`inline-block h-2.5 w-2.5 shrink-0 rounded-full ${anel ? "ring-2 ring-white" : ""}`}
       style={{ background: COR_ESCOPO[escopo] ?? "var(--color-texto-secundario)" }}
     />
   );
@@ -38,7 +38,7 @@ export function SeletorVisao({
   extras?: Record<string, string | undefined>;
 }) {
   return (
-    <div className="inline-flex flex-wrap items-center gap-1 rounded-md border border-slate-300 bg-superficie p-1">
+    <div className="vidro inline-flex flex-wrap items-center gap-1 rounded-2xl p-1">
       {VISOES.map((opcao) => {
         const ativo = opcao === visao;
         return (
@@ -46,11 +46,13 @@ export function SeletorVisao({
             key={opcao}
             href={montarHref(base, { ...extras, visao: opcao, mes })}
             aria-current={ativo ? "true" : undefined}
-            className={`inline-flex items-center gap-2 rounded px-3 py-1.5 text-sm font-medium transition-colors ${
-              ativo ? "bg-base-escura text-white" : "text-texto-secundario hover:bg-fundo hover:text-texto-principal"
+            className={`inline-flex items-center gap-2 rounded-xl px-3.5 py-1.5 text-sm font-medium ${
+              ativo
+                ? "bg-accent text-white shadow-[inset_0_1px_0_rgb(255_255_255/0.3),0_6px_14px_-6px_rgb(37_99_235/0.6)]"
+                : "text-texto-secundario hover:bg-white/70 hover:text-texto-principal"
             }`}
           >
-            {opcao !== "TODOS" && <Bolinha escopo={opcao} />}
+            {opcao !== "TODOS" && <Bolinha escopo={opcao} anel={ativo} />}
             {LABEL_VISAO[opcao]}
           </Link>
         );
@@ -71,7 +73,7 @@ export function SeletorMes({
   visao?: string;
   extras?: Record<string, string | undefined>;
 }) {
-  const seta = "grid h-8 w-8 place-items-center rounded text-texto-secundario hover:bg-fundo hover:text-texto-principal transition-colors";
+  const seta = "grid h-8 w-8 place-items-center rounded-xl text-texto-secundario hover:bg-white/80 hover:text-texto-principal";
   return (
     <div className="inline-flex items-center gap-2">
       {mes !== mesAtual() && (
@@ -79,7 +81,7 @@ export function SeletorMes({
           Mês atual
         </Link>
       )}
-      <div className="inline-flex items-center gap-1 rounded-md border border-slate-300 bg-superficie p-1">
+      <div className="vidro inline-flex items-center gap-1 rounded-2xl p-1">
         <Link href={montarHref(base, { ...extras, visao, mes: somarMeses(mes, -1) })} aria-label="Mês anterior" className={seta}>
           ‹
         </Link>

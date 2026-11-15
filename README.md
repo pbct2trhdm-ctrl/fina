@@ -42,7 +42,7 @@ O gasto de um mês é a soma de: gastos avulsos do mês, contas fixas **pagas** 
 - **Parcelados**: compras em andamento e quitadas.
 - **Orçamento e limites**: orçamento por pessoa e limites por categoria de cada visão.
 - **Metas e reserva**: reserva de emergência em meses de gastos e metas com prazo opcional.
-- **Importar extrato**: CSV ou OFX do banco/cartão, com revisão das linhas antes de gravar — ver `lib/extrato.ts`.
+- **Importar extrato**: fatura do cartão ou extrato em PDF, CSV ou OFX, com revisão das linhas antes de gravar. O arquivo é lido no navegador. CSV/OFX: `lib/extrato.ts`. PDF: `lib/extrato-pdf.ts` tira o texto do PDF e procura linhas com data, descrição e valor (funciona por padrão de texto, não por banco; PDF digitalizado como imagem não é lido; PDF com senha pede a senha).
 - **Configurações**: dados de exemplo, cópia de segurança e apagar tudo.
 
 ## Cópia de segurança

@@ -7,7 +7,7 @@ import { BotaoEnvio } from "@/components/botao-envio";
 import { EmptyState } from "@/components/empty-state";
 import { Bolinha, SeletorMes, SeletorVisao, montarHref } from "@/components/seletores";
 import { Selo, SELO_SITUACAO_CONTA } from "@/components/selo";
-import { classeBotaoConfirma, classeBotaoPrimario, classeBotaoSecundario, classeCard, classeTituloPagina } from "@/lib/estilos";
+import { classeBotaoConfirma, classeBotaoPrimario, classeBotaoSecundario, classeCard, classeTabela, classeTituloPagina } from "@/lib/estilos";
 
 export default async function ContasPage({ searchParams }: { searchParams: Promise<{ visao?: string; mes?: string }> }) {
   const parametros = await searchParams;
@@ -51,10 +51,10 @@ export default async function ContasPage({ searchParams }: { searchParams: Promi
       {contas.length === 0 ? (
         <EmptyState mensagem="Nenhuma conta fixa em vigor nesta visão neste mês." acaoHref={`/contas/nova?mes=${mes}`} acaoLabel="Nova conta" />
       ) : (
-        <div className="overflow-x-auto rounded-xl border border-slate-200 bg-superficie shadow-xs">
+        <div className={classeTabela}>
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-slate-200 text-left text-xs uppercase tracking-wide text-texto-secundario">
+              <tr className="border-b border-slate-200/70 text-left text-xs uppercase tracking-wide text-texto-secundario">
                 <th className="px-4 py-3 font-semibold">Vencimento</th>
                 <th className="px-4 py-3 font-semibold">Conta</th>
                 <th className="px-4 py-3 font-semibold">Categoria</th>
@@ -69,7 +69,7 @@ export default async function ContasPage({ searchParams }: { searchParams: Promi
                 const selo = SELO_SITUACAO_CONTA[conta.situacao];
                 const paga = conta.situacao === "PAGA";
                 return (
-                  <tr key={conta.id} className="border-b border-slate-100 last:border-0 hover:bg-fundo">
+                  <tr key={conta.id} className="border-b border-slate-200/50 last:border-0 hover:bg-white/60 transition-colors">
                     <td className="px-4 py-2.5 tabular-nums text-texto-secundario">
                       {conta.vencimento.slice(8)}/{conta.vencimento.slice(5, 7)}
                     </td>

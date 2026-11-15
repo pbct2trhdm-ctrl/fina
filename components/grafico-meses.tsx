@@ -69,7 +69,7 @@ export function GraficoMeses({
           return (
             <a key={mes} href={hrefDoMes(mes)} aria-label={`${nomeMes(mes)}: ${formatarMoeda(totais[i])}`}>
               <title>{dica}</title>
-              <rect className="fill-transparent hover:fill-fundo" x={esquerda + faixa * i} y={topo} width={faixa} height={altura} />
+              <rect className="fill-transparent transition-colors hover:fill-white/70" rx="10" x={esquerda + faixa * i} y={topo} width={faixa} height={altura} />
               {valores[i].map((v, j) => {
                 if (v <= 0) return null;
                 const y1 = y(acumulado + v);
