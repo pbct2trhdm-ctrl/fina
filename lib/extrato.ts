@@ -158,3 +158,33 @@ export function separarGastos(linhas: LinhaExtrato[], inverter = false): { gasto
     .sort((a, b) => b.data.localeCompare(a.data));
   return { gastos, ignorados: linhas.length - gastos.length };
 }
+
+/** Descrição de um pagamento de fatura de cartão (no sinal contrário ao das compras). */
+const PAGAMENTO_NA_FATURA = /pagamento|pagto|pgto|credito de pagamento/;
+/** Em extrato de conta: débito que parece pagar a fatura de um cartão. */
+const PAGAMENTO_NA_CONTA = /(pag(amento|to)?|pgto|pgt)\W.*(fatura|cart[aã]o)|fatura.*cart[aã]o|cart[aã]o.*fatura/;
+
+export function parecePagamentoDeFatura(descricao: string): boolean {
+  return PAGAMENTO_NA_CONTA.test(semAcento(descricao));
+}
+
+/**
+ * Fatura de cartão: as compras são o sinal mais frequente; no sinal contrário,
+ * o que parece pagamento da fatura vira pagamento (entra nas despesas) e o
+ * resto (estornos, créditos) é ignorado. `inverter` troca o sinal das compras.
+ */
+export function separarFatura(
+  linhas: LinhaExtrato[],
+  inverter = false
+): { compras: LinhaExtrato[]; pagamentos: LinhaExtrato[]; ignorados: number } {
+  const negativos = linhas.filter((l) => l.valor < 0).length;
+  const positivos = linhas.filter((l) => l.valor > 0).length;
+  const compraEhNegativa = (negativos >= positivos) !== inverter;
+  const limpar = (l: LinhaExtrato) => ({ data: l.data, descricao: l.descricao.slice(0, 60), valor: Math.round(Math.abs(l.valor) * 100) / 100 });
+  const ordenar = (a: LinhaExtrato, b: LinhaExtrato) => b.data.localeCompare(a.data);
+
+  const compras = linhas.filter((l) => (compraEhNegativa ? l.valor < 0 : l.valor > 0)).map(limpar).sort(ordenar);
+  const contrarias = linhas.filter((l) => (compraEhNegativa ? l.valor > 0 : l.valor < 0));
+  const pagamentos = contrarias.filter((l) => PAGAMENTO_NA_FATURA.test(semAcento(l.descricao))).map(limpar).sort(ordenar);
+  return { compras, pagamentos, ignorados: contrarias.length - pagamentos.length };
+}

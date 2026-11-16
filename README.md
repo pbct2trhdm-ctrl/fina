@@ -23,12 +23,13 @@ Com o banco vazio, **Configurações → Carregar dados de exemplo** preenche se
 
 ## Como o gasto do mês é calculado
 
-O gasto de um mês é a soma de: gastos avulsos do mês, contas fixas **pagas** naquele mês e a parcela do mês de cada compra parcelada — ver `lib/financas.ts`. As entradas do mês são as entradas avulsas mais as entradas fixas **confirmadas**; o saldo do mês é entradas menos gastos. Tudo pode ser visto por **visão**: Família (soma), Eu, Esposa ou Casa.
+O gasto de um mês é a soma de: gastos avulsos do mês, contas fixas **pagas** naquele mês, a parcela do mês de cada compra parcelada e os **pagamentos de fatura de cartão** feitos no mês — ver `lib/financas.ts`. **Compras no cartão de crédito não entram nos gastos**: ficam só na tela Cartões, e o que entra é o pagamento da fatura (total ou parcial), na data em que foi pago. As entradas do mês são as entradas avulsas mais as entradas fixas **confirmadas**; o saldo do mês é entradas menos gastos. Tudo pode ser visto por **visão**: Família (soma), Eu, Esposa ou Casa.
 
 ## Modelo de dados
 
 - **Gasto**: descrição, categoria, valor, data e de quem é (Eu, Esposa ou Casa).
-- **Cartao**: cartão de crédito (nome, de quem é e dias de fechamento e vencimento, informativos). Gastos e compras parceladas apontam para o cartão em que foram feitos; apagar o cartão mantém os lançamentos, que ficam sem cartão.
+- **Cartao**: cartão de crédito (nome, de quem é e dias de fechamento e vencimento, informativos). Gastos e compras parceladas apontam para o cartão em que foram feitos e, com cartão, deixam de contar nos gastos do mês. Apagar o cartão apaga os pagamentos dele e devolve as compras aos gastos comuns.
+- **PagamentoCartao**: pagamento (total ou parcial) de uma fatura, com data, valor e de quem é; é o que entra nos gastos do mês.
 - **Entrada**: dinheiro que entrou em uma data (renda extra, reembolso), com tipo e de quem é.
 - **EntradaFixa** + **RecebimentoEntrada**: entrada mensal (salário), que só conta no mês depois de confirmada; mesma lógica das contas fixas.
 - **ContaFixa** + **PagamentoConta**: conta mensal com dia de vencimento; cada pagamento guarda o valor da época, então mudar o valor da conta não altera meses já pagos. Encerrar uma conta mantém o histórico.
@@ -41,7 +42,7 @@ O gasto de um mês é a soma de: gastos avulsos do mês, contas fixas **pagas** 
 
 - **Resumo** (`/`): gasto do mês contra o orçamento, quanto dá para gastar por dia, balanço do mês (entradas, saídas e saldo), gasto por pessoa, últimos 6 meses, categorias com limites, contas do mês (com botão Pagar), parcelas, reserva e metas.
 - **Lançamentos**: tudo o que entrou no mês (gastos, contas pagas e parcelas), com busca e filtro por categoria; cadastro e edição de gastos.
-- **Cartões**: gasto de cada cartão no mês (por pessoa) e nos últimos 6 meses; "Sem cartão" reúne débito, Pix e contas fixas. A importação de fatura escolhe o cartão, e Lançamentos filtra por cartão.
+- **Cartões**: lista dos cartões com as compras e o valor pago da fatura no mês e nos últimos 6 meses; a página de cada cartão mostra as compras do mês e os pagamentos (registrar, editar, excluir). Ao importar uma fatura escolhendo o cartão, as compras vão para o cartão e os pagamentos que aparecem na fatura viram pagamentos da fatura.
 - **Entradas**: entradas fixas do mês (com botão Confirmar), entradas avulsas e saldo do mês.
 - **Contas fixas**: situação do mês (paga, vencida, vence hoje, a vencer), cadastro, edição e encerramento.
 - **Parcelados**: compras em andamento e quitadas.

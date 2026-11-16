@@ -10,15 +10,21 @@ import { ESCOPOS, type CategoriaChave, type EscopoChave, type TipoEntradaChave, 
 
 export type Lancamento = {
   id: string;
-  tipo: "GASTO" | "CONTA" | "PARCELA";
+  /** FATURA: pagamento (total ou parcial) de fatura de cartão, na data em que foi pago. */
+  tipo: "GASTO" | "CONTA" | "PARCELA" | "FATURA";
   /** "AAAA-MM-DD" */
   data: string;
   descricao: string;
   categoria: CategoriaChave;
   escopo: EscopoChave;
   valor: number;
-  /** Cartão de crédito em que o gasto ou a parcela foi feito; nulo = débito, Pix ou dinheiro. */
+  /** Cartão da compra ou da fatura paga; nulo = débito, Pix, dinheiro ou conta fixa. */
   cartaoId: string | null;
+  /**
+   * Compra feita no cartão de crédito. Ela mora na tela Cartões e NÃO entra
+   * nos gastos do mês: quem entra é o pagamento da fatura (tipo FATURA).
+   */
+  noCartao: boolean;
 };
 
 export const somar = (itens: { valor: number }[]) => itens.reduce((total, item) => total + item.valor, 0);
@@ -26,20 +32,26 @@ export const somar = (itens: { valor: number }[]) => itens.reduce((total, item) 
 export const naVisao = <T extends { escopo: string }>(itens: T[], visao: VisaoChave) =>
   visao === "TODOS" ? itens : itens.filter((item) => item.escopo === visao);
 
-/** Lançamentos de vários meses de uma vez (uma consulta por tabela), sempre de todas as pessoas. */
-export async function lancamentosPorMes(meses: string[]): Promise<Record<string, Lancamento[]>> {
+/**
+ * Lançamentos de vários meses de uma vez (uma consulta por tabela), sempre de
+ * todas as pessoas. Por padrão devolve os gastos do mês: compras no cartão de
+ * crédito ficam de fora e o pagamento da fatura entra na data em que foi pago.
+ * `comprasNoCartao` inclui também as compras (tela Cartões).
+ */
+export async function lancamentosPorMes(
+  meses: string[],
+  opcoes: { comprasNoCartao?: boolean } = {}
+): Promise<Record<string, Lancamento[]>> {
   const ordenados = [...meses].sort();
-  const [gastos, pagamentos, compras] = await Promise.all([
-    prisma.gasto.findMany({
-      where: {
-        data: {
-          gte: intervaloDoMes(ordenados[0]).inicio,
-          lt: intervaloDoMes(ordenados[ordenados.length - 1]).fim,
-        },
-      },
-    }),
+  const intervalo = {
+    gte: intervaloDoMes(ordenados[0]).inicio,
+    lt: intervaloDoMes(ordenados[ordenados.length - 1]).fim,
+  };
+  const [gastos, pagamentos, compras, faturas] = await Promise.all([
+    prisma.gasto.findMany({ where: { data: intervalo } }),
     prisma.pagamentoConta.findMany({ where: { mes: { in: meses } }, include: { conta: true } }),
     prisma.compraParcelada.findMany(),
+    prisma.pagamentoCartao.findMany({ where: { data: intervalo }, include: { cartao: true } }),
   ]);
 
   const porMes: Record<string, Lancamento[]> = Object.fromEntries(meses.map((m) => [m, []]));
@@ -55,6 +67,7 @@ export async function lancamentosPorMes(meses: string[]): Promise<Record<string,
       escopo: gasto.escopo,
       valor: gasto.valor,
       cartaoId: gasto.cartaoId,
+      noCartao: !!gasto.cartaoId,
     });
   }
   for (const pagamento of pagamentos) {
@@ -67,6 +80,7 @@ export async function lancamentosPorMes(meses: string[]): Promise<Record<string,
       escopo: pagamento.conta.escopo,
       valor: pagamento.valor,
       cartaoId: null,
+      noCartao: false,
     });
   }
   for (const compra of compras) {
@@ -82,10 +96,26 @@ export async function lancamentosPorMes(meses: string[]): Promise<Record<string,
         escopo: compra.escopo,
         valor: compra.valorParcela,
         cartaoId: compra.cartaoId,
+        noCartao: !!compra.cartaoId,
       });
     }
   }
+  for (const fatura of faturas) {
+    const dia = fatura.data.toISOString().slice(0, 10);
+    porMes[dia.slice(0, 7)]?.push({
+      id: fatura.id,
+      tipo: "FATURA",
+      data: dia,
+      descricao: `Fatura ${fatura.cartao.nome}${fatura.descricao ? ` · ${fatura.descricao}` : ""}`,
+      categoria: "CARTAO",
+      escopo: fatura.escopo,
+      valor: fatura.valor,
+      cartaoId: fatura.cartaoId,
+      noCartao: false,
+    });
+  }
   for (const mes of meses) {
+    if (!opcoes.comprasNoCartao) porMes[mes] = porMes[mes].filter((item) => !item.noCartao);
     porMes[mes].sort((a, b) => b.data.localeCompare(a.data) || a.descricao.localeCompare(b.descricao));
   }
   return porMes;

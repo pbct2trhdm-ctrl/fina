@@ -39,7 +39,8 @@ export const CATEGORIAS = [
   "ELETRONICOS",
   "OUTROS",
 ] as const;
-export type CategoriaChave = (typeof CATEGORIAS)[number];
+/** CARTAO (pagamento de fatura) existe no banco mas não está em CATEGORIAS: não se escolhe à mão. */
+export type CategoriaChave = (typeof CATEGORIAS)[number] | "CARTAO";
 
 export const LABEL_CATEGORIA: Record<string, string> = {
   MORADIA: "Moradia",
@@ -53,6 +54,7 @@ export const LABEL_CATEGORIA: Record<string, string> = {
   EDUCACAO: "Educação",
   ELETRONICOS: "Eletrônicos",
   OUTROS: "Outros",
+  CARTAO: "Cartão de crédito",
 };
 
 export const TIPOS_ENTRADA = ["SALARIO", "HONORARIOS", "EXTRA", "OUTROS"] as const;
@@ -69,6 +71,7 @@ export const LABEL_TIPO_LANCAMENTO: Record<string, string> = {
   GASTO: "Gasto",
   CONTA: "Conta fixa",
   PARCELA: "Parcela",
+  FATURA: "Fatura do cartão",
 };
 
 export function formatarMoeda(valor: number): string {

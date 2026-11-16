@@ -1,15 +1,43 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { lerLinhasExtrato, separarGastos, semAcento, sugerirCategoria, sugerirTipoEntrada, type LinhaExtrato } from "@/lib/extrato";
+import {
+  lerLinhasExtrato,
+  parecePagamentoDeFatura,
+  semAcento,
+  separarFatura,
+  separarGastos,
+  sugerirCategoria,
+  sugerirTipoEntrada,
+  type LinhaExtrato,
+} from "@/lib/extrato";
 import { SenhaDoPdfNecessaria, extrairLinhasPdf, lerLinhasDeFatura } from "@/lib/extrato-pdf";
 import { hojeIsoLocal } from "@/lib/datas";
-import { entradasNoIntervalo, gastosNoIntervalo, importarEntradas, importarGastos } from "@/lib/actions/importacao";
+import {
+  entradasNoIntervalo,
+  gastosNoIntervalo,
+  importarEntradas,
+  importarFatura,
+  importarGastos,
+  pagamentosNoIntervalo,
+} from "@/lib/actions/importacao";
 import { CATEGORIAS, ESCOPOS, LABEL_CATEGORIA, LABEL_ESCOPO, LABEL_TIPO_ENTRADA, TIPOS_ENTRADA, formatarMoeda } from "@/lib/formatacao";
 import { classeBadgeNeutro, classeBotaoPrimario, classeBotaoSecundario, classeCard, classeInput, classeInputAuto, classeLabel } from "@/lib/estilos";
 
 /** `categoria` guarda a categoria do gasto ou, no modo Entradas, o tipo da entrada. */
-type Linha = { escolhida: boolean; duplicada: boolean; data: string; descricao: string; valor: number; categoria: string; escopo: string };
+type Linha = {
+  escolhida: boolean;
+  duplicada: boolean;
+  /** Em extrato de conta: o débito parece pagar a fatura de um cartão (já conta no cartão). */
+  pagamentoFatura?: boolean;
+  data: string;
+  descricao: string;
+  valor: number;
+  categoria: string;
+  escopo: string;
+};
+/** Pagamento da fatura de um cartão lido do PDF: entra nos gastos do mês, na data do pagamento. */
+type LinhaPagamento = { escolhida: boolean; duplicada: boolean; data: string; descricao: string; valor: number; escopo: string };
 type Modo = "GASTOS" | "ENTRADAS";
 
 const chave = (data: string, valor: number, descricao: string) => `${data}|${valor.toFixed(2)}|${semAcento(descricao)}`;
@@ -21,6 +49,7 @@ export function ImportarExtrato({ cartoes }: { cartoes: { id: string; nome: stri
   const [pdfComSenha, setPdfComSenha] = useState<{ bytes: Uint8Array; nome: string; errada: boolean } | null>(null);
   const [senha, setSenha] = useState("");
   const [linhas, setLinhas] = useState<Linha[]>([]);
+  const [pagamentos, setPagamentos] = useState<LinhaPagamento[]>([]);
   const [ignorados, setIgnorados] = useState(0);
   const [escopo, setEscopo] = useState<string>("CASA");
   // O que trazer do arquivo: as saídas (gastos) ou o dinheiro que entrou.
@@ -31,23 +60,57 @@ export function ImportarExtrato({ cartoes }: { cartoes: { id: string; nome: stri
   const [lendo, setLendo] = useState(false);
   const [enviando, iniciarEnvio] = useTransition();
 
-  async function carregar(brutas: LinhaExtrato[], nome: string, inverter: boolean, pdf: boolean, modoAtual: Modo = modo) {
+  async function carregar(
+    brutas: LinhaExtrato[],
+    nome: string,
+    inverter: boolean,
+    pdf: boolean,
+    modoAtual: Modo = modo,
+    cartaoSel: string = cartaoId,
+    escopoSel: string = escopo
+  ) {
     setErro("");
     setLendo(true);
     try {
-      // Entradas são o lado que a separação de gastos descarta: basta inverter a escolha.
-      const { gastos, ignorados: fora } = separarGastos(brutas, inverter !== (modoAtual === "ENTRADAS"));
+      const faturaDeCartao = modoAtual === "GASTOS" && !!cartaoSel;
+      const donoDoCartao = cartoes.find((c) => c.id === cartaoSel)?.escopo ?? escopoSel;
+      let compras: LinhaExtrato[];
+      let lidosPagamentos: LinhaExtrato[] = [];
+      let fora: number;
+      if (faturaDeCartao) {
+        ({ compras, pagamentos: lidosPagamentos, ignorados: fora } = separarFatura(brutas, inverter));
+      } else {
+        // Entradas são o lado que a separação de gastos descarta: basta inverter a escolha.
+        const separado = separarGastos(brutas, inverter !== (modoAtual === "ENTRADAS"));
+        compras = separado.gastos;
+        fora = separado.ignorados;
+      }
+
       // Lançamentos já gravados no mesmo intervalo, para marcar os repetidos.
       const buscar = modoAtual === "ENTRADAS" ? entradasNoIntervalo : gastosNoIntervalo;
-      const existentes = gastos.length ? await buscar(gastos[gastos.length - 1].data, gastos[0].data) : [];
+      const existentes = compras.length ? await buscar(compras[compras.length - 1].data, compras[0].data) : [];
       const vistos = new Set(existentes.map((g) => chave(g.data, g.valor, g.descricao)));
+      const jaPagos = new Set<string>();
+      if (faturaDeCartao && lidosPagamentos.length) {
+        const datas = lidosPagamentos.map((p) => p.data).sort();
+        (await pagamentosNoIntervalo(cartaoSel, datas[0], datas[datas.length - 1])).forEach((p) => jaPagos.add(`${p.data}|${p.valor.toFixed(2)}`));
+      }
+
       setOrigem({ brutas, nome, inverter, pdf });
       setIgnorados(fora);
       setLinhas(
-        gastos.map((g) => {
+        compras.map((g) => {
           const duplicada = vistos.has(chave(g.data, g.valor, g.descricao));
           const classe = modoAtual === "ENTRADAS" ? sugerirTipoEntrada(g.descricao) : sugerirCategoria(g.descricao);
-          return { ...g, escolhida: !duplicada, duplicada, categoria: classe, escopo };
+          // Em extrato de conta, o débito que paga a fatura de um cartão já está no cartão: vem desmarcado.
+          const pagamentoFatura = modoAtual === "GASTOS" && !cartaoSel && parecePagamentoDeFatura(g.descricao);
+          return { ...g, escolhida: !duplicada && !pagamentoFatura, duplicada, pagamentoFatura, categoria: classe, escopo: escopoSel };
+        })
+      );
+      setPagamentos(
+        lidosPagamentos.map((p) => {
+          const duplicada = jaPagos.has(`${p.data}|${p.valor.toFixed(2)}`);
+          return { ...p, escolhida: !duplicada, duplicada, escopo: donoDoCartao };
         })
       );
     } catch {
@@ -67,6 +130,7 @@ export function ImportarExtrato({ cartoes }: { cartoes: { id: string; nome: stri
       if (linhas.join("").trim().length === 0) {
         setOrigem(null);
         setLinhas([]);
+        setPagamentos([]);
         setErro("Este PDF não tem texto (parece uma imagem digitalizada). Baixe a fatura em PDF direto do app ou site do banco.");
         return;
       }
@@ -75,6 +139,7 @@ export function ImportarExtrato({ cartoes }: { cartoes: { id: string; nome: stri
       if (e instanceof SenhaDoPdfNecessaria) {
         setOrigem(null);
         setLinhas([]);
+        setPagamentos([]);
         setPdfComSenha({ bytes, nome, errada: e.senhaErrada });
       } else {
         setErro("Não foi possível ler o PDF.");
@@ -117,8 +182,9 @@ export function ImportarExtrato({ cartoes }: { cartoes: { id: string; nome: stri
   function trocarCartao(id: string) {
     setCartaoId(id);
     // A pessoa dona do cartão é a sugestão natural para as compras da fatura.
-    const dono = cartoes.find((c) => c.id === id)?.escopo;
-    if (dono) trocarEscopo(dono);
+    const dono = cartoes.find((c) => c.id === id)?.escopo ?? escopo;
+    setEscopo(dono);
+    if (origem) carregar(origem.brutas, origem.nome, origem.inverter, origem.pdf, modo, id, dono);
   }
 
   function trocarEscopo(novo: string) {
@@ -127,6 +193,10 @@ export function ImportarExtrato({ cartoes }: { cartoes: { id: string; nome: stri
   }
 
   const escolhidas = linhas.filter((linha) => linha.escolhida);
+  const pagamentosEscolhidos = pagamentos.filter((pagamento) => pagamento.escolhida);
+  const alterarPagamento = (indice: number, mudanca: Partial<LinhaPagamento>) =>
+    setPagamentos((atuais) => atuais.map((p, i) => (i === indice ? { ...p, ...mudanca } : p)));
+  const faturaDeCartao = modo === "GASTOS" && !!cartaoId;
   const duplicadas = linhas.filter((linha) => linha.duplicada).length;
 
   function importar() {
@@ -135,6 +205,12 @@ export function ImportarExtrato({ cartoes }: { cartoes: { id: string; nome: stri
       try {
         if (modo === "ENTRADAS") {
           await importarEntradas(escolhidas.map(({ data, descricao, valor, categoria, escopo: de }) => ({ data, descricao, valor, tipo: categoria, escopo: de })));
+        } else if (faturaDeCartao) {
+          await importarFatura(
+            cartaoId,
+            escolhidas.map(({ data, descricao, valor, categoria, escopo: de }) => ({ data, descricao, valor, categoria, escopo: de })),
+            pagamentosEscolhidos.map(({ data, descricao, valor, escopo: de }) => ({ data, descricao, valor, escopo: de }))
+          );
         } else {
           await importarGastos(
             escolhidas.map(({ data, descricao, valor, categoria, escopo: de }) => ({ data, descricao, valor, categoria, escopo: de })),
@@ -240,7 +316,7 @@ export function ImportarExtrato({ cartoes }: { cartoes: { id: string; nome: stri
         </form>
       )}
 
-      {origem && !lendo && linhas.length === 0 && (
+      {origem && !lendo && linhas.length === 0 && pagamentos.length === 0 && (
         <div className="rounded-2xl border border-dashed border-slate-300 bg-white/50 p-8 backdrop-blur-md text-center text-sm text-texto-secundario">
           {modo === "ENTRADAS" ? "Nenhuma entrada encontrada" : "Nenhum gasto encontrado"} em “{origem.nome}”.{" "}
           {origem.pdf
@@ -249,12 +325,14 @@ export function ImportarExtrato({ cartoes }: { cartoes: { id: string; nome: stri
         </div>
       )}
 
-      {origem && linhas.length > 0 && (
+      {origem && (linhas.length > 0 || pagamentos.length > 0) && (
         <>
           <p className="text-sm text-texto-secundario">
             <strong className="text-texto-principal">
               {linhas.length}{" "}
-              {modo === "ENTRADAS"
+              {faturaDeCartao
+                ? linhas.length === 1 ? "compra encontrada" : "compras encontradas"
+                : modo === "ENTRADAS"
                 ? linhas.length === 1 ? "entrada encontrada" : "entradas encontradas"
                 : linhas.length === 1 ? "gasto encontrado" : "gastos encontrados"}
             </strong>{" "}
@@ -262,7 +340,7 @@ export function ImportarExtrato({ cartoes }: { cartoes: { id: string; nome: stri
             {ignorados > 0 && (
               <>
                 {" "}
-                · {ignorados} de sinal contrário {ignorados === 1 ? "ignorado" : "ignorados"}, {modo === "ENTRADAS" ? "como gastos e pagamentos" : "como entradas e pagamentos"} (
+                · {ignorados} de sinal contrário {ignorados === 1 ? "ignorado" : "ignorados"}, {faturaDeCartao ? "como estornos e créditos" : modo === "ENTRADAS" ? "como gastos e pagamentos" : "como entradas e pagamentos"} (
                 <button type="button" className="font-semibold text-accent hover:underline" onClick={() => carregar(origem.brutas, origem.nome, !origem.inverter, origem.pdf)}>
                   trocar
                 </button>
@@ -307,6 +385,11 @@ export function ImportarExtrato({ cartoes }: { cartoes: { id: string; nome: stri
                     <td className="px-3 py-2">
                       {linha.descricao}
                       {linha.duplicada && <span className={`${classeBadgeNeutro} ml-2`}>já lançado</span>}
+                      {linha.pagamentoFatura && (
+                        <span className={`${classeBadgeNeutro} ml-2`} title="Já conta nas compras do cartão. Para registrar o pagamento da fatura, importe a fatura escolhendo o cartão ou use Cartões → Registrar pagamento.">
+                          parece pagamento de fatura
+                        </span>
+                      )}
                     </td>
                     <td className="px-3 py-2">
                       <select
@@ -338,19 +421,94 @@ export function ImportarExtrato({ cartoes }: { cartoes: { id: string; nome: stri
             </table>
           </div>
 
+          {faturaDeCartao && (
+            <div>
+              <h3 className="mb-1 text-sm font-semibold">Pagamentos da fatura</h3>
+              <p className="mb-2 text-sm text-texto-secundario">
+                Estes são os pagamentos (total ou parcial) que aparecem na fatura. Eles <strong>entram nos gastos do mês</strong>, na data em que
+                foram pagos; as compras acima ficam só no cartão.
+              </p>
+              {pagamentos.length === 0 ? (
+                <p className="rounded-xl border border-dashed border-slate-300 bg-white/50 px-4 py-3 text-sm text-texto-secundario">
+                  Nenhum pagamento encontrado neste arquivo. Depois de importar, registre o valor pago em Cartões → Registrar pagamento.
+                </p>
+              ) : (
+                <div className="vidro overflow-auto rounded-2xl">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-slate-200/70 text-left text-xs uppercase tracking-wide text-texto-secundario">
+                        <th className="px-3 py-3" />
+                        <th className="px-3 py-3 font-semibold">Data</th>
+                        <th className="px-3 py-3 font-semibold">Descrição</th>
+                        <th className="px-3 py-3 font-semibold">De quem</th>
+                        <th className="px-3 py-3 text-right font-semibold">Valor</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {pagamentos.map((pagamento, i) => (
+                        <tr key={i} className="border-b border-slate-200/50 last:border-0">
+                          <td className="px-3 py-2">
+                            <input
+                              type="checkbox"
+                              checked={pagamento.escolhida}
+                              onChange={(e) => alterarPagamento(i, { escolhida: e.target.checked })}
+                              aria-label={`Registrar pagamento de ${formatarMoeda(pagamento.valor)}`}
+                              className="h-4 w-4 accent-[var(--color-accent)]"
+                            />
+                          </td>
+                          <td className="px-3 py-2 tabular-nums text-texto-secundario">
+                            {pagamento.data.slice(8)}/{pagamento.data.slice(5, 7)}/{pagamento.data.slice(0, 4)}
+                          </td>
+                          <td className="px-3 py-2">
+                            {pagamento.descricao}
+                            {pagamento.duplicada && <span className={`${classeBadgeNeutro} ml-2`}>já registrado</span>}
+                          </td>
+                          <td className="px-3 py-2">
+                            <select
+                              value={pagamento.escopo}
+                              onChange={(e) => alterarPagamento(i, { escopo: e.target.value })}
+                              aria-label="De quem"
+                              className={`${classeInputAuto} py-1`}
+                            >
+                              {ESCOPOS.map((opcao) => (
+                                <option key={opcao} value={opcao}>
+                                  {LABEL_ESCOPO[opcao]}
+                                </option>
+                              ))}
+                            </select>
+                          </td>
+                          <td className="px-3 py-2 text-right tabular-nums">{formatarMoeda(pagamento.valor)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          )}
+
           <div className="flex flex-wrap items-center justify-between gap-3">
             <p className="text-sm text-texto-secundario">
-              {escolhidas.length} de {linhas.length} selecionados · {formatarMoeda(escolhidas.reduce((total, linha) => total + linha.valor, 0))}
+              {escolhidas.length} de {linhas.length} {faturaDeCartao ? "compras" : "selecionados"} · {formatarMoeda(escolhidas.reduce((total, linha) => total + linha.valor, 0))}
+              {faturaDeCartao && (
+                <>
+                  {" "}
+                  · {pagamentosEscolhidos.length} {pagamentosEscolhidos.length === 1 ? "pagamento" : "pagamentos"} ·{" "}
+                  {formatarMoeda(pagamentosEscolhidos.reduce((total, p) => total + p.valor, 0))} nos gastos
+                </>
+              )}
             </p>
             <button
               type="button"
               onClick={importar}
-              disabled={escolhidas.length === 0 || enviando}
+              disabled={(escolhidas.length === 0 && pagamentosEscolhidos.length === 0) || enviando}
               className={`${classeBotaoPrimario} disabled:cursor-not-allowed disabled:opacity-60`}
             >
               {enviando
                 ? "Importando…"
-                : `Importar ${escolhidas.length} ${modo === "ENTRADAS" ? (escolhidas.length === 1 ? "entrada" : "entradas") : escolhidas.length === 1 ? "gasto" : "gastos"}`}
+                : faturaDeCartao
+                  ? `Importar ${escolhidas.length} ${escolhidas.length === 1 ? "compra" : "compras"} e ${pagamentosEscolhidos.length} ${pagamentosEscolhidos.length === 1 ? "pagamento" : "pagamentos"}`
+                  : `Importar ${escolhidas.length} ${modo === "ENTRADAS" ? (escolhidas.length === 1 ? "entrada" : "entradas") : escolhidas.length === 1 ? "gasto" : "gastos"}`}
             </button>
           </div>
         </>

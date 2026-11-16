@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { lancamentosPorMes, listarCartoes, naVisao, somar } from "@/lib/financas";
+import { lancamentosPorMes, naVisao, somar } from "@/lib/financas";
 import {
   CATEGORIAS,
   LABEL_CATEGORIA,
@@ -19,16 +19,17 @@ import {
   classeTituloPagina,
 } from "@/lib/estilos";
 
-const EDITAR: Record<string, (id: string) => string> = {
+const EDITAR: Record<string, (id: string, cartaoId: string | null) => string> = {
   GASTO: (id) => `/lancamentos/${id}/editar`,
   CONTA: (id) => `/contas/${id}/editar`,
   PARCELA: (id) => `/parcelados/${id}/editar`,
+  FATURA: (id, cartaoId) => `/cartoes/${cartaoId}/pagamentos/${id}/editar`,
 };
 
 export default async function LancamentosPage({
   searchParams,
 }: {
-  searchParams: Promise<{ visao?: string; mes?: string; q?: string; categoria?: string; cartao?: string }>;
+  searchParams: Promise<{ visao?: string; mes?: string; q?: string; categoria?: string }>;
 }) {
   const parametros = await searchParams;
   const visao = lerVisao(parametros.visao);
@@ -37,16 +38,12 @@ export default async function LancamentosPage({
   const categoria = (CATEGORIAS as readonly string[]).includes(parametros.categoria ?? "") ? parametros.categoria! : "";
   const normalizar = (texto: string) => texto.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
 
-  const [porMes, cartoes] = await Promise.all([lancamentosPorMes([mes]), listarCartoes()]);
-  const nomeCartao = new Map(cartoes.map((c) => [c.id, c.nome]));
-  const cartao = parametros.cartao === "SEM" || nomeCartao.has(parametros.cartao ?? "") ? parametros.cartao! : "";
-  const doMes = naVisao(porMes[mes], visao);
+  const doMes = naVisao((await lancamentosPorMes([mes]))[mes], visao);
   const lista = doMes
     .filter((item) => !categoria || item.categoria === categoria)
-    .filter((item) => !cartao || (cartao === "SEM" ? !item.cartaoId : item.cartaoId === cartao))
     .filter((item) => !q || normalizar(item.descricao).includes(normalizar(q)));
-  const filtrado = !!q || !!categoria || !!cartao;
-  const extras = { q: q || undefined, categoria: categoria || undefined, cartao: cartao || undefined };
+  const filtrado = !!q || !!categoria;
+  const extras = { q: q || undefined, categoria: categoria || undefined };
 
   return (
     <div className="max-w-6xl">
@@ -77,17 +74,6 @@ export default async function LancamentosPage({
               </option>
             ))}
           </select>
-          {cartoes.length > 0 && (
-            <select name="cartao" defaultValue={cartao} aria-label="Cartão" className={classeInputAuto}>
-              <option value="">Todos os cartões</option>
-              {cartoes.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.nome}
-                </option>
-              ))}
-              <option value="SEM">Sem cartão</option>
-            </select>
-          )}
           <button type="submit" className={classeBotaoSecundario}>
             Filtrar
           </button>
@@ -114,7 +100,6 @@ export default async function LancamentosPage({
                 <th className="px-4 py-3 font-semibold">Descrição</th>
                 <th className="px-4 py-3 font-semibold">Categoria</th>
                 <th className="px-4 py-3 font-semibold">De quem</th>
-                {cartoes.length > 0 && <th className="px-4 py-3 font-semibold">Cartão</th>}
                 <th className="px-4 py-3 font-semibold">Tipo</th>
                 <th className="px-4 py-3 text-right font-semibold">Valor</th>
                 <th className="px-4 py-3" />
@@ -134,13 +119,12 @@ export default async function LancamentosPage({
                       {LABEL_ESCOPO[item.escopo]}
                     </span>
                   </td>
-                  {cartoes.length > 0 && <td className="px-4 py-2.5 text-texto-secundario">{item.cartaoId ? nomeCartao.get(item.cartaoId) : "—"}</td>}
                   <td className="px-4 py-2.5">
                     <span className={classeBadgeNeutro}>{LABEL_TIPO_LANCAMENTO[item.tipo]}</span>
                   </td>
                   <td className="px-4 py-2.5 text-right tabular-nums">{formatarMoeda(item.valor)}</td>
                   <td className="px-4 py-2.5 text-right">
-                    <Link href={EDITAR[item.tipo](item.id)} className="text-accent hover:underline" aria-label={`Editar ${item.descricao}`}>
+                    <Link href={EDITAR[item.tipo](item.id, item.cartaoId)} className="text-accent hover:underline" aria-label={`Editar ${item.descricao}`}>
                       Editar
                     </Link>
                   </td>
@@ -149,7 +133,7 @@ export default async function LancamentosPage({
             </tbody>
             <tfoot>
               <tr className="border-t border-slate-200/70 font-semibold">
-                <td className="px-4 py-3" colSpan={cartoes.length > 0 ? 6 : 5}>
+                <td className="px-4 py-3" colSpan={5}>
                   {lista.length} {lista.length === 1 ? "lançamento" : "lançamentos"}
                   {filtrado && <span className="font-normal text-texto-secundario"> de {doMes.length} no mês</span>}
                 </td>

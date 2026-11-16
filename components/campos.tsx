@@ -34,6 +34,7 @@ export function CampoCartao({ cartoes, padrao = "" }: { cartoes: { id: string; n
           </option>
         ))}
       </select>
+      <p className="mt-1 text-xs text-texto-secundario">No cartão, a compra fica na tela do cartão e não entra nos gastos do mês; só o pagamento da fatura entra.</p>
     </div>
   );
 }

@@ -26,6 +26,8 @@ enum Categoria {
   EDUCACAO
   ELETRONICOS
   OUTROS
+  /// Pagamento de fatura de cartão de crédito (não é escolhida à mão).
+  CARTAO
 }
 
 /// Visão a que um limite de categoria se aplica (cada visão tem os seus).
@@ -48,6 +50,7 @@ model Cartao {
   escopo        Escopo            @default(EU)
   gastos        Gasto[]
   compras       CompraParcelada[]
+  pagamentos    PagamentoCartao[]
   criadoEm      DateTime          @default(now())
 }
 
@@ -187,4 +190,20 @@ model RecebimentoEntrada {
 
   @@unique([entradaId, mes])
   @@index([mes])
+}
+
+/// Pagamento (total ou parcial) de uma fatura de cartão. É o que entra nos
+/// gastos do mês, na data em que foi pago: as compras do cartão ficam só na
+/// tela Cartões. Apagar o cartão apaga os pagamentos dele.
+model PagamentoCartao {
+  id        String   @id @default(cuid())
+  cartaoId  String
+  cartao    Cartao   @relation(fields: [cartaoId], references: [id], onDelete: Cascade)
+  data      DateTime
+  valor     Float
+  escopo    Escopo
+  descricao String?
+  criadoEm  DateTime @default(now())
+
+  @@index([data])
 }

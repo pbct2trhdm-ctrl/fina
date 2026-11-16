@@ -8,9 +8,9 @@ import { LinkVoltar } from "@/components/link-voltar";
 
 export default async function EditarCartaoPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const cartao = await prisma.cartao.findUnique({ where: { id }, include: { _count: { select: { gastos: true, compras: true } } } });
+  const cartao = await prisma.cartao.findUnique({ where: { id }, include: { _count: { select: { gastos: true, compras: true, pagamentos: true } } } });
   if (!cartao) notFound();
-  const vinculados = cartao._count.gastos + cartao._count.compras;
+  const { gastos, compras, pagamentos } = cartao._count;
 
   return (
     <div>
@@ -21,7 +21,7 @@ export default async function EditarCartaoPage({ params }: { params: Promise<{ i
           <BotaoEnvio
             textoAguardando="Excluindo…"
             className={classeBotaoPerigo}
-            confirmacao={`Excluir o cartão "${cartao.nome}"? Os ${vinculados} lançamentos dele continuam no sistema, só ficam sem cartão.`}
+            confirmacao={`Excluir o cartão "${cartao.nome}"? Os ${pagamentos} pagamentos de fatura serão apagados e as ${gastos + compras} compras viram gastos comuns (passam a entrar nos gastos do mês).`}
           >
             Excluir
           </BotaoEnvio>

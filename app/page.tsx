@@ -57,7 +57,7 @@ export default async function ResumoPage({
   const atual = mesAtual();
   const meses = Array.from({ length: 6 }, (_, i) => somarMeses(mes, i - 5));
 
-  const [vazio, porMes, contas, parcelas, mapaOrcamentos, limites, reserva, metas, media, entradasMeses, entradasFixas, cartoes] = await Promise.all([
+  const [vazio, porMes, contas, parcelas, mapaOrcamentos, limites, reserva, metas, media, entradasMeses, entradasFixas, cartoes, comCartoes] = await Promise.all([
     Promise.all([
       prisma.gasto.count(),
       prisma.contaFixa.count(),
@@ -78,6 +78,7 @@ export default async function ResumoPage({
     entradasPorMes(meses),
     entradasFixasDoMes(mes),
     listarCartoes(),
+    lancamentosPorMes([mes], { comprasNoCartao: true }),
   ]);
 
   if (vazio) {
@@ -359,18 +360,20 @@ export default async function ResumoPage({
         {cartoes.length > 0 && (
           <section className={`${classeCard} lg:order-5 lg:col-span-12`}>
             <div className="mb-2 flex items-center justify-between">
-              <h2 className="text-sm text-texto-secundario">Cartões de crédito</h2>
+              <h2 className="text-sm text-texto-secundario">Compras nos cartões <span className="text-xs">(não entram nos gastos; o pagamento da fatura entra)</span></h2>
               <Link href={montarHref("/cartoes", { mes })} className={linkDiscreto}>
                 Ver cartões
               </Link>
             </div>
             <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
               {cartoes.map((cartao) => {
-                const itens = lista.filter((item) => item.cartaoId === cartao.id);
+                const doCartao = naVisao(comCartoes[mes], visao).filter((item) => item.cartaoId === cartao.id);
+                const compras = doCartao.filter((item) => item.noCartao);
+                const pago = doCartao.filter((item) => item.tipo === "FATURA");
                 return (
                   <li key={cartao.id}>
                     <Link
-                      href={montarHref("/lancamentos", { visao, mes, cartao: cartao.id })}
+                      href={`/cartoes/${cartao.id}?mes=${mes}`}
                       className="block rounded-xl px-3 py-2.5 transition-colors hover:bg-white/70"
                     >
                       <span className="flex items-center justify-between gap-3">
@@ -378,10 +381,10 @@ export default async function ResumoPage({
                           <Bolinha escopo={cartao.escopo} />
                           {cartao.nome}
                         </span>
-                        <span className="tabular-nums">{formatarMoeda(somar(itens))}</span>
+                        <span className="tabular-nums">{formatarMoeda(somar(compras))}</span>
                       </span>
                       <span className="block text-xs text-texto-secundario">
-                        {itens.length} {itens.length === 1 ? "lançamento" : "lançamentos"}
+                        {compras.length} {compras.length === 1 ? "compra" : "compras"} · pago da fatura {formatarMoeda(somar(pago))}
                         {cartao.diaVencimento ? ` · vence dia ${cartao.diaVencimento}` : ""}
                       </span>
                     </Link>
