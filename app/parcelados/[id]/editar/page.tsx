@@ -10,7 +10,7 @@ import { LinkVoltar } from "@/components/link-voltar";
 export default async function EditarCompraPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const [compra, cartoes] = await Promise.all([prisma.compraParcelada.findUnique({ where: { id } }), listarCartoes()]);
-  if (!compra) notFound();
+  if (!compra || compra.tipo !== "COMPRA") notFound();
 
   return (
     <div>

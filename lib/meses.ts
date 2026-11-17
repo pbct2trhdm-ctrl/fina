@@ -44,6 +44,12 @@ export function intervaloDoMes(mes: string): { inicio: Date; fim: Date } {
   return { inicio: new Date(Date.UTC(ano, m - 1, 1)), fim: new Date(Date.UTC(ano, m, 1)) };
 }
 
+/** Soma dias a uma data "AAAA-MM-DD". */
+export function somarDias(iso: string, dias: number): string {
+  const d = new Date(Date.UTC(+iso.slice(0, 4), +iso.slice(5, 7) - 1, +iso.slice(8, 10)) + dias * 86_400_000);
+  return d.toISOString().slice(0, 10);
+}
+
 /** "Novembro de 2026" (ou "nov. de 2026" com `curto`). */
 export function nomeMes(mes: string, curto = false): string {
   const [ano, m] = mes.split("-").map(Number);

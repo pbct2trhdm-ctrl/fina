@@ -28,6 +28,21 @@ export function sugerirCategoria(descricao: string): CategoriaChave {
   return PALPITES.find(([, padrao]) => padrao.test(texto))?.[0] ?? "OUTROS";
 }
 
+/**
+ * Chave de uma descrição para as categorias aprendidas: sem acento, sem
+ * dígitos (número da loja, parcela "01/03", datas) e sem espaços repetidos.
+ * "30139 SH BOSQUE GRAO" e "SH BOSQUE GRAO 02/03" viram a mesma chave.
+ */
+export function chaveDescricao(descricao: string): string {
+  return semAcento(descricao)
+    .replace(/\d+[\/.-]\d+/g, " ")
+    .replace(/\d+/g, " ")
+    .replace(/[^a-z*&.\s]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 40);
+}
+
 /** Tipo sugerido para uma entrada de dinheiro, pela descrição. */
 export function sugerirTipoEntrada(descricao: string): "SALARIO" | "HONORARIOS" | "EXTRA" | "OUTROS" {
   const texto = semAcento(descricao);
@@ -187,4 +202,11 @@ export function separarFatura(
   const contrarias = linhas.filter((l) => (compraEhNegativa ? l.valor > 0 : l.valor < 0));
   const pagamentos = contrarias.filter((l) => PAGAMENTO_NA_FATURA.test(semAcento(l.descricao))).map(limpar).sort(ordenar);
   return { compras, pagamentos, ignorados: contrarias.length - pagamentos.length };
+}
+
+/** Movimento entre contas da própria pessoa (não é gasto nem renda): transferência, aplicação, resgate. */
+const TRANSFERENCIA = /transf(erencia|\.)?\b|\btef\b|\bdoc\b|\bted\b|aplicacao|resgate|poupanca|investimento|cdb|tesouro|entre contas|mesma titularidade|mesmo cpf|conta corrente para|para conta/;
+
+export function pareceTransferencia(descricao: string): boolean {
+  return TRANSFERENCIA.test(semAcento(descricao));
 }

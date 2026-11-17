@@ -99,8 +99,16 @@ model PagamentoConta {
 }
 
 /// Compra parcelada: cada parcela entra sozinha no gasto do mês correspondente.
+/// COMPRA: compra parcelada comum. DIVIDA: dívida ou acordo (empréstimo,
+/// renegociação) pago em parcelas — mesma mecânica, tela própria.
+enum TipoParcelado {
+  COMPRA
+  DIVIDA
+}
+
 model CompraParcelada {
-  id           String    @id @default(cuid())
+  id           String        @id @default(cuid())
+  tipo         TipoParcelado @default(COMPRA)
   descricao    String
   categoria    Categoria
   escopo       Escopo
@@ -109,8 +117,8 @@ model CompraParcelada {
   inicio       String
   diaCobranca  Int
   cartaoId     String?
-  cartao       Cartao?   @relation(fields: [cartaoId], references: [id], onDelete: SetNull)
-  criadoEm     DateTime  @default(now())
+  cartao       Cartao?       @relation(fields: [cartaoId], references: [id], onDelete: SetNull)
+  criadoEm     DateTime      @default(now())
 }
 
 /// Orçamento mensal de cada pessoa/casa (o da família é a soma).
@@ -206,4 +214,13 @@ model PagamentoCartao {
   criadoEm  DateTime @default(now())
 
   @@index([data])
+}
+
+/// Categoria aprendida: quando você corrige a categoria de um gasto (ao editar
+/// ou na revisão da importação), a descrição normalizada vira uma regra que as
+/// próximas importações aplicam antes da sugestão por palavra-chave.
+model RegraCategoria {
+  chave        String    @id
+  categoria    Categoria
+  atualizadoEm DateTime  @updatedAt
 }

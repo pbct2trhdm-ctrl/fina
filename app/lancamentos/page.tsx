@@ -23,6 +23,7 @@ const EDITAR: Record<string, (id: string, cartaoId: string | null) => string> = 
   GASTO: (id) => `/lancamentos/${id}/editar`,
   CONTA: (id) => `/contas/${id}/editar`,
   PARCELA: (id) => `/parcelados/${id}/editar`,
+  DIVIDA: (id) => `/dividas/${id}/editar`,
   FATURA: (id, cartaoId) => `/cartoes/${cartaoId}/pagamentos/${id}/editar`,
 };
 

@@ -13,7 +13,7 @@ import { classeBotaoPrimario, classeCard, classeCardHover, classeTituloPagina, c
 export default async function ParceladosPage({ searchParams }: { searchParams: Promise<{ visao?: string }> }) {
   const visao = lerVisao((await searchParams).visao);
   const atual = mesAtual();
-  const compras = naVisao(await prisma.compraParcelada.findMany({ orderBy: { inicio: "desc" } }), visao).map((compra) => {
+  const compras = naVisao(await prisma.compraParcelada.findMany({ where: { tipo: "COMPRA" }, orderBy: { inicio: "desc" } }), visao).map((compra) => {
     // Parcelas já vencidas até o mês atual (0 se ainda não começou, todas se terminou).
     const pagas = Math.min(compra.parcelas, Math.max(0, diferencaMeses(compra.inicio, atual) + 1));
     return { ...compra, pagas, falta: compra.valorParcela * (compra.parcelas - pagas), ultimo: somarMeses(compra.inicio, compra.parcelas - 1) };

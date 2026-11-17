@@ -72,6 +72,7 @@ export const LABEL_TIPO_LANCAMENTO: Record<string, string> = {
   CONTA: "Conta fixa",
   PARCELA: "Parcela",
   FATURA: "Fatura do cartão",
+  DIVIDA: "Dívida/acordo",
 };
 
 export function formatarMoeda(valor: number): string {

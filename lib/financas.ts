@@ -5,13 +5,13 @@
  */
 import { prisma } from "@/lib/prisma";
 import { hojeIsoLocal } from "@/lib/datas";
-import { diaDoMes, diferencaMeses, intervaloDoMes, mesAtual, somarMeses } from "@/lib/meses";
+import { diaDoMes, diferencaMeses, intervaloDoMes, mesAtual, somarDias, somarMeses } from "@/lib/meses";
 import { ESCOPOS, type CategoriaChave, type EscopoChave, type TipoEntradaChave, type VisaoChave } from "@/lib/formatacao";
 
 export type Lancamento = {
   id: string;
   /** FATURA: pagamento (total ou parcial) de fatura de cartão, na data em que foi pago. */
-  tipo: "GASTO" | "CONTA" | "PARCELA" | "FATURA";
+  tipo: "GASTO" | "CONTA" | "PARCELA" | "DIVIDA" | "FATURA";
   /** "AAAA-MM-DD" */
   data: string;
   descricao: string;
@@ -89,7 +89,7 @@ export async function lancamentosPorMes(
       if (indice < 0 || indice >= compra.parcelas) continue;
       porMes[mes].push({
         id: compra.id,
-        tipo: "PARCELA",
+        tipo: compra.tipo === "DIVIDA" ? "DIVIDA" : "PARCELA",
         data: diaDoMes(mes, compra.diaCobranca),
         descricao: `${compra.descricao} (${indice + 1}/${compra.parcelas})`,
         categoria: compra.categoria,
@@ -155,9 +155,9 @@ export async function contasDoMes(mes: string) {
   });
 }
 
-/** Compras parceladas com parcela no mês informado. */
+/** Compras parceladas (não dívidas) com parcela no mês informado. */
 export async function parcelasDoMes(mes: string) {
-  const compras = await prisma.compraParcelada.findMany({ orderBy: { criadoEm: "asc" } });
+  const compras = await prisma.compraParcelada.findMany({ where: { tipo: "COMPRA" }, orderBy: { criadoEm: "asc" } });
   return compras
     .map((compra) => ({ ...compra, indice: diferencaMeses(compra.inicio, mes) }))
     .filter((compra) => compra.indice >= 0 && compra.indice < compra.parcelas)
@@ -303,4 +303,75 @@ export async function cartaoExistente(valor: unknown): Promise<string | null> {
   if (!id) return null;
   const cartao = await prisma.cartao.findUnique({ where: { id }, select: { id: true } });
   return cartao?.id ?? null;
+}
+
+// ── Faturas por ciclo ──
+
+export type Fatura = {
+  /** Mês (AAAA-MM) em que a fatura fecha; identifica a fatura. */
+  mes: string;
+  /** Primeiro e último dia de compras do ciclo ("AAAA-MM-DD"). */
+  inicio: string;
+  fim: string;
+  vencimento: string;
+  /** Ainda recebendo compras (hoje <= fim). */
+  aberta: boolean;
+  compras: Lancamento[];
+  pagamentos: Lancamento[];
+  totalCompras: number;
+  totalPago: number;
+  /** Saldo acumulado até esta fatura: compras − pagamentos de todos os ciclos listados (positivo = falta pagar). */
+  saldoAcumulado: number;
+};
+
+/**
+ * Ciclo da fatura que fecha no mês `mes`: compras do dia seguinte ao
+ * fechamento do mês anterior até o fechamento deste mês. O vencimento cai no
+ * mesmo mês quando é depois do fechamento (fecha 3, vence 10); senão, no mês
+ * seguinte (fecha 25, vence 5).
+ */
+export function cicloDaFatura(cartao: { diaFechamento: number | null; diaVencimento: number | null }, mes: string) {
+  if (!cartao.diaFechamento) return null;
+  const fim = diaDoMes(mes, cartao.diaFechamento);
+  const inicio = somarDias(diaDoMes(somarMeses(mes, -1), cartao.diaFechamento), 1);
+  const diaVenc = cartao.diaVencimento ?? cartao.diaFechamento;
+  const vencimento = diaVenc > cartao.diaFechamento ? diaDoMes(mes, diaVenc) : diaDoMes(somarMeses(mes, 1), diaVenc);
+  return { inicio, fim, vencimento };
+}
+
+/** Mês da fatura (AAAA-MM) em que uma data cai, para um cartão com fechamento. */
+export function mesDaFatura(cartao: { diaFechamento: number | null }, dia: string): string {
+  const mes = dia.slice(0, 7);
+  if (!cartao.diaFechamento) return mes;
+  return dia > diaDoMes(mes, cartao.diaFechamento) ? somarMeses(mes, 1) : mes;
+}
+
+/**
+ * Faturas de um cartão: as `quantidade` que fecham até o mês `ate`, mais a
+ * seguinte (a que está aberta). Compras e pagamentos entram na fatura cujo
+ * ciclo contém a data — o mesmo critério que o banco imprime no PDF.
+ */
+export async function faturasDoCartao(
+  cartao: { id: string; diaFechamento: number | null; diaVencimento: number | null },
+  ate: string,
+  quantidade = 6
+): Promise<Fatura[]> {
+  const mesesFatura = Array.from({ length: quantidade + 1 }, (_, i) => somarMeses(ate, i - quantidade + 1));
+  // Os ciclos começam no mês anterior ao primeiro: busca um mês a mais de cada lado.
+  const mesesBusca = Array.from({ length: quantidade + 3 }, (_, i) => somarMeses(ate, i - quantidade));
+  const porMes = await lancamentosPorMes(mesesBusca, { comprasNoCartao: true });
+  const doCartao = mesesBusca.flatMap((m) => porMes[m]).filter((item) => item.cartaoId === cartao.id);
+  const hoje = hojeIsoLocal();
+
+  let saldo = 0;
+  return mesesFatura.map((mes) => {
+    const ciclo = cicloDaFatura(cartao, mes) ?? { inicio: diaDoMes(mes, 1), fim: diaDoMes(mes, 31), vencimento: diaDoMes(mes, 31) };
+    const noCiclo = doCartao.filter((item) => item.data >= ciclo.inicio && item.data <= ciclo.fim);
+    const compras = noCiclo.filter((item) => item.noCartao);
+    const pagamentos = noCiclo.filter((item) => item.tipo === "FATURA");
+    const totalCompras = somar(compras);
+    const totalPago = somar(pagamentos);
+    saldo += totalCompras - totalPago;
+    return { mes, ...ciclo, aberta: hoje <= ciclo.fim, compras, pagamentos, totalCompras, totalPago, saldoAcumulado: saldo };
+  });
 }

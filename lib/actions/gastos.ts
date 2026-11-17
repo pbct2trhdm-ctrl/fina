@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { categoria, data, dinheiro, escopo, texto } from "@/lib/validacao";
 import { cartaoExistente } from "@/lib/financas";
+import { aprenderCategoria } from "@/lib/categorias";
 
 async function dadosComuns(formData: FormData) {
   const descricao = texto(formData.get("descricao"));
@@ -35,7 +36,11 @@ export async function criarGasto(formData: FormData) {
 }
 
 export async function atualizarGasto(id: string, formData: FormData) {
-  const gasto = await prisma.gasto.update({ where: { id }, data: await dadosComuns(formData) });
+  const dados = await dadosComuns(formData);
+  const anterior = await prisma.gasto.findUnique({ where: { id }, select: { categoria: true } });
+  const gasto = await prisma.gasto.update({ where: { id }, data: dados });
+  // Categoria corrigida à mão ensina as próximas importações.
+  if (anterior && anterior.categoria !== dados.categoria) await aprenderCategoria(dados.descricao, dados.categoria);
   revalidar();
   redirect(`/lancamentos?mes=${gasto.data.toISOString().slice(0, 7)}`);
 }

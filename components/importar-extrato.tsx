@@ -2,8 +2,10 @@
 
 import { useState, useTransition } from "react";
 import {
+  chaveDescricao,
   lerLinhasExtrato,
   parecePagamentoDeFatura,
+  pareceTransferencia,
   semAcento,
   separarFatura,
   separarGastos,
@@ -19,6 +21,8 @@ import {
   importarEntradas,
   importarFatura,
   importarGastos,
+  categoriasAprendidas,
+  pagamentosDeCartaoNoIntervalo,
   pagamentosNoIntervalo,
 } from "@/lib/actions/importacao";
 import { CATEGORIAS, ESCOPOS, LABEL_CATEGORIA, LABEL_ESCOPO, LABEL_TIPO_ENTRADA, TIPOS_ENTRADA, formatarMoeda } from "@/lib/formatacao";
@@ -30,6 +34,12 @@ type Linha = {
   duplicada: boolean;
   /** Em extrato de conta: o débito parece pagar a fatura de um cartão (já conta no cartão). */
   pagamentoFatura?: boolean;
+  /** Em extrato de conta: bate com um pagamento de fatura já registrado em um cartão. */
+  pagamentoRegistrado?: string;
+  /** Movimento entre contas da própria pessoa (não é gasto nem renda). */
+  transferencia?: boolean;
+  /** Categoria veio de uma regra aprendida com uma correção sua. */
+  aprendida?: boolean;
   data: string;
   descricao: string;
   valor: number;
@@ -88,8 +98,16 @@ export function ImportarExtrato({ cartoes }: { cartoes: { id: string; nome: stri
 
       // Lançamentos já gravados no mesmo intervalo, para marcar os repetidos.
       const buscar = modoAtual === "ENTRADAS" ? entradasNoIntervalo : gastosNoIntervalo;
-      const existentes = compras.length ? await buscar(compras[compras.length - 1].data, compras[0].data) : [];
+      const extratoDeConta = modoAtual === "GASTOS" && !cartaoSel;
+      const [existentes, regras, pagosEmCartoes] = await Promise.all([
+        compras.length ? buscar(compras[compras.length - 1].data, compras[0].data) : Promise.resolve([]),
+        modoAtual === "GASTOS" ? categoriasAprendidas(compras.map((g) => g.descricao)) : Promise.resolve({} as Record<string, string>),
+        extratoDeConta && compras.length ? pagamentosDeCartaoNoIntervalo(compras[compras.length - 1].data, compras[0].data) : Promise.resolve([]),
+      ]);
       const vistos = new Set(existentes.map((g) => chave(g.data, g.valor, g.descricao)));
+      // Débito da conta que bate (valor igual, até 3 dias de diferença) com um pagamento de fatura já registrado.
+      const pagamentoRegistrado = (g: LinhaExtrato) =>
+        pagosEmCartoes.find((p) => Math.abs(p.valor - g.valor) < 0.005 && Math.abs(Date.parse(p.data) - Date.parse(g.data)) <= 3 * 86_400_000)?.cartao;
       const jaPagos = new Set<string>();
       if (faturaDeCartao && lidosPagamentos.length) {
         const datas = lidosPagamentos.map((p) => p.data).sort();
@@ -101,10 +119,24 @@ export function ImportarExtrato({ cartoes }: { cartoes: { id: string; nome: stri
       setLinhas(
         compras.map((g) => {
           const duplicada = vistos.has(chave(g.data, g.valor, g.descricao));
-          const classe = modoAtual === "ENTRADAS" ? sugerirTipoEntrada(g.descricao) : sugerirCategoria(g.descricao);
+          const regra = modoAtual === "GASTOS" ? regras[chaveDescricao(g.descricao)] : undefined;
+          const classe = regra ?? (modoAtual === "ENTRADAS" ? sugerirTipoEntrada(g.descricao) : sugerirCategoria(g.descricao));
           // Em extrato de conta, o débito que paga a fatura de um cartão já está no cartão: vem desmarcado.
-          const pagamentoFatura = modoAtual === "GASTOS" && !cartaoSel && parecePagamentoDeFatura(g.descricao);
-          return { ...g, escolhida: !duplicada && !pagamentoFatura, duplicada, pagamentoFatura, categoria: classe, escopo: escopoSel };
+          const registrado = extratoDeConta ? pagamentoRegistrado(g) : undefined;
+          const pagamentoFatura = extratoDeConta && !registrado && parecePagamentoDeFatura(g.descricao);
+          // Transferência entre contas próprias não é gasto nem renda: vem desmarcada.
+          const transferencia = !cartaoSel && pareceTransferencia(g.descricao);
+          return {
+            ...g,
+            escolhida: !duplicada && !pagamentoFatura && !registrado && !transferencia,
+            duplicada,
+            pagamentoFatura,
+            pagamentoRegistrado: registrado,
+            transferencia,
+            aprendida: !!regra,
+            categoria: classe,
+            escopo: escopoSel,
+          };
         })
       );
       setPagamentos(
@@ -385,6 +417,21 @@ export function ImportarExtrato({ cartoes }: { cartoes: { id: string; nome: stri
                     <td className="px-3 py-2">
                       {linha.descricao}
                       {linha.duplicada && <span className={`${classeBadgeNeutro} ml-2`}>já lançado</span>}
+                      {linha.pagamentoRegistrado && (
+                        <span className={`${classeBadgeNeutro} ml-2`} title="Este valor já está registrado como pagamento de fatura e já conta nos gastos.">
+                          já registrado · fatura {linha.pagamentoRegistrado}
+                        </span>
+                      )}
+                      {linha.transferencia && (
+                        <span className={`${classeBadgeNeutro} ml-2`} title="Transferência, aplicação ou resgate entre contas suas: não é gasto nem renda. Marque se for mesmo um gasto.">
+                          parece transferência
+                        </span>
+                      )}
+                      {linha.aprendida && (
+                        <span className="ml-2 text-[11px] text-texto-secundario" title="Categoria aprendida de uma correção sua em importação ou edição anterior.">
+                          ✓ categoria aprendida
+                        </span>
+                      )}
                       {linha.pagamentoFatura && (
                         <span className={`${classeBadgeNeutro} ml-2`} title="Já conta nas compras do cartão. Para registrar o pagamento da fatura, importe a fatura escolhendo o cartão ou use Cartões → Registrar pagamento.">
                           parece pagamento de fatura

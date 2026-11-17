@@ -58,6 +58,25 @@ export function IconeParcelados(props: IconeProps) {
   );
 }
 
+export function IconeDividas(props: IconeProps) {
+  return (
+    <Svg {...props}>
+      <path d="M4 17.5 9 12l3.5 3.5L20 8" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M15 8h5v5" strokeLinecap="round" strokeLinejoin="round" />
+    </Svg>
+  );
+}
+
+export function IconePrevisao(props: IconeProps) {
+  return (
+    <Svg {...props}>
+      <path d="M4 18V6M4 18h16" strokeLinecap="round" />
+      <path d="M7 14l3.5-4 3 2.5L18 7" strokeLinecap="round" strokeLinejoin="round" strokeDasharray="0" />
+      <path d="M16 7h2v2" strokeLinecap="round" strokeLinejoin="round" />
+    </Svg>
+  );
+}
+
 export function IconeCartoes(props: IconeProps) {
   return (
     <Svg {...props}>

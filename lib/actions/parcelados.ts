@@ -6,7 +6,16 @@ import { revalidatePath } from "next/cache";
 import { categoria, dinheiro, escopo, inteiro, mes, texto } from "@/lib/validacao";
 import { cartaoExistente } from "@/lib/financas";
 
+function tipoDe(formData: FormData): "COMPRA" | "DIVIDA" {
+  return formData.get("tipo") === "DIVIDA" ? "DIVIDA" : "COMPRA";
+}
+
+function destino(tipo: "COMPRA" | "DIVIDA") {
+  return tipo === "DIVIDA" ? "/dividas" : "/parcelados";
+}
+
 async function dadosComuns(formData: FormData) {
+  const tipo = tipoDe(formData);
   const descricao = texto(formData.get("descricao"));
   const valorParcela = dinheiro(formData.get("valorParcela"));
   if (!descricao) throw new Error("Descrição é obrigatória");
@@ -19,30 +28,36 @@ async function dadosComuns(formData: FormData) {
     diaCobranca: inteiro(formData.get("diaCobranca"), 1, 31, 10),
     categoria: categoria(formData.get("categoria")),
     escopo: escopo(formData.get("escopo")),
-    cartaoId: await cartaoExistente(formData.get("cartaoId")),
+    tipo,
+    // Dívida é paga da conta, nunca "no cartão".
+    cartaoId: tipo === "DIVIDA" ? null : await cartaoExistente(formData.get("cartaoId")),
   };
 }
 
 function revalidar() {
   revalidatePath("/");
   revalidatePath("/parcelados");
+  revalidatePath("/dividas");
+  revalidatePath("/previsao");
   revalidatePath("/lancamentos");
 }
 
 export async function criarCompra(formData: FormData) {
-  await prisma.compraParcelada.create({ data: await dadosComuns(formData) });
+  const dados = await dadosComuns(formData);
+  await prisma.compraParcelada.create({ data: dados });
   revalidar();
-  redirect("/parcelados");
+  redirect(destino(dados.tipo));
 }
 
 export async function atualizarCompra(id: string, formData: FormData) {
-  await prisma.compraParcelada.update({ where: { id }, data: await dadosComuns(formData) });
+  const dados = await dadosComuns(formData);
+  await prisma.compraParcelada.update({ where: { id }, data: dados });
   revalidar();
-  redirect("/parcelados");
+  redirect(destino(dados.tipo));
 }
 
 export async function excluirCompra(id: string) {
-  await prisma.compraParcelada.delete({ where: { id } });
+  const apagada = await prisma.compraParcelada.delete({ where: { id } });
   revalidar();
-  redirect("/parcelados");
+  redirect(destino(apagada.tipo));
 }

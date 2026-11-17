@@ -10,7 +10,8 @@
     "postinstall": "prisma generate",
     "backup": "node scripts/backup.mjs",
     "servico": "bash scripts/instalar-servico.sh",
-    "atualizar": "bash scripts/atualizar.sh"
+    "atualizar": "bash scripts/atualizar.sh",
+    "rotinas": "bash scripts/instalar-rotinas.sh"
   },
   "dependencies": {
     "@prisma/adapter-better-sqlite3": "^7.8.0",

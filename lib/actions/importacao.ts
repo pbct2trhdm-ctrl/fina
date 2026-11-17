@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { categoria, data, dinheiro, escopo, tipoEntrada } from "@/lib/validacao";
 import { cartaoExistente } from "@/lib/financas";
+import { aprenderCategorias, regrasPara } from "@/lib/categorias";
 
 export type LinhaImportada = { data: string; descricao: string; valor: number; categoria: string; escopo: string };
 
@@ -37,6 +38,7 @@ export async function importarGastos(linhas: LinhaImportada[], cartaoId: string 
 
   if (validas.length === 0) throw new Error("Nenhuma linha válida para importar");
   await prisma.gasto.createMany({ data: validas });
+  await aprenderCategorias(validas);
 
   revalidatePath("/");
   revalidatePath("/lancamentos");
@@ -131,10 +133,28 @@ export async function importarFatura(cartaoId: string, compras: LinhaImportada[]
     prisma.gasto.createMany({ data: comprasValidas }),
     prisma.pagamentoCartao.createMany({ data: pagamentosValidos }),
   ]);
+  await aprenderCategorias(comprasValidas);
 
   revalidatePath("/");
   revalidatePath("/cartoes");
   revalidatePath("/lancamentos");
   const meses = [...comprasValidas, ...pagamentosValidos].map((l) => l.data.toISOString().slice(0, 7)).sort();
   redirect(`/cartoes/${cartao}?mes=${meses.at(-1)}`);
+}
+
+/** Categorias aprendidas para as descrições de um arquivo (chave normalizada → categoria). */
+export async function categoriasAprendidas(descricoes: string[]) {
+  return regrasPara(descricoes.slice(0, 3000));
+}
+
+/** Pagamentos de fatura já registrados em qualquer cartão num intervalo, para reconhecê-los no extrato da conta. */
+export async function pagamentosDeCartaoNoIntervalo(de: string, ate: string) {
+  const inicio = data(de);
+  const fim = data(ate);
+  if (!inicio || !fim) return [];
+  const pagamentos = await prisma.pagamentoCartao.findMany({
+    where: { data: { gte: inicio, lte: fim } },
+    include: { cartao: { select: { nome: true } } },
+  });
+  return pagamentos.map((p) => ({ data: p.data.toISOString().slice(0, 10), valor: p.valor, cartao: p.cartao.nome }));
 }
