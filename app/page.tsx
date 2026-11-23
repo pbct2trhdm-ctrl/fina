@@ -103,7 +103,7 @@ export default async function ResumoPage({
   const total = somar(lista);
   const orcamento = orcamentoDaVisao(mapaOrcamentos, visao);
   const contasVisao = naVisao(contas, visao);
-  const aPagar = somar(contasVisao.filter((conta) => conta.situacao !== "PAGA"));
+  const aPagar = somar(contasVisao.filter((conta) => conta.situacao !== "PAGA" && conta.situacao !== "NO_CARTAO"));
   const livre = orcamento - total - aPagar;
   const parcelasVisao = naVisao(parcelas, visao);
   const entradasRecebidas = somar(naVisao(entradasMeses[mes], visao));
@@ -416,18 +416,25 @@ export default async function ResumoPage({
                       <span className={`font-medium ${paga ? "text-texto-secundario line-through" : ""}`}>{conta.descricao}</span>
                       <span className="block text-xs text-texto-secundario">
                         dia {conta.diaVencimento} · {LABEL_ESCOPO[conta.escopo]}
+                        {conta.cartaoNome && ` · cartão ${conta.cartaoNome}`}
                       </span>
                     </span>
                     <Selo tom={selo.tom}>{selo.texto}</Selo>
                     <span className={`w-24 text-right tabular-nums ${paga ? "text-texto-secundario" : ""}`}>{formatarMoeda(conta.valor)}</span>
-                    <form action={alternarPagamento.bind(null, conta.id, mes, aqui())}>
-                      <BotaoEnvio
-                        textoAguardando="…"
-                        className={`${paga ? classeBotaoSecundario : classeBotaoConfirma} w-[5.25rem]`}
-                      >
-                        {paga ? "Desfazer" : "Pagar"}
-                      </BotaoEnvio>
-                    </form>
+                    {conta.situacao === "NO_CARTAO" && conta.cartaoId ? (
+                      <Link href={`/cartoes/${conta.cartaoId}?mes=${mes}`} className={`${classeBotaoSecundario} w-[5.25rem]`}>
+                        Fatura
+                      </Link>
+                    ) : (
+                      <form action={alternarPagamento.bind(null, conta.id, mes, aqui())}>
+                        <BotaoEnvio
+                          textoAguardando="…"
+                          className={`${paga ? classeBotaoSecundario : classeBotaoConfirma} w-[5.25rem]`}
+                        >
+                          {paga ? "Desfazer" : "Pagar"}
+                        </BotaoEnvio>
+                      </form>
+                    )}
                   </li>
                 );
               })}

@@ -14,8 +14,11 @@ export default async function ContasPage({ searchParams }: { searchParams: Promi
   const visao = lerVisao(parametros.visao);
   const mes = lerMes(parametros.mes);
   const contas = naVisao(await contasDoMes(mes), visao);
-  const pagas = contas.filter((conta) => conta.situacao === "PAGA");
-  const abertas = contas.filter((conta) => conta.situacao !== "PAGA");
+  // Contas cobradas no cartão não se pagam aqui: entram pelo pagamento da fatura.
+  const noCartao = contas.filter((conta) => conta.situacao === "NO_CARTAO");
+  const diretas = contas.filter((conta) => conta.situacao !== "NO_CARTAO");
+  const pagas = diretas.filter((conta) => conta.situacao === "PAGA");
+  const abertas = diretas.filter((conta) => conta.situacao !== "PAGA");
   const aqui = montarHref("/contas", { visao, mes });
 
   return (
@@ -36,7 +39,11 @@ export default async function ContasPage({ searchParams }: { searchParams: Promi
 
       <div className="mb-4 grid grid-cols-1 gap-4 sm:grid-cols-3">
         {[
-          { rotulo: "Total do mês", valor: somar(contas), detalhe: `${contas.length} ${contas.length === 1 ? "conta" : "contas"}` },
+          {
+            rotulo: "Total do mês",
+            valor: somar(diretas),
+            detalhe: `${diretas.length} ${diretas.length === 1 ? "conta" : "contas"}${noCartao.length ? ` · mais ${formatarMoeda(somar(noCartao))} no cartão` : ""}`,
+          },
           { rotulo: "Já pago", valor: somar(pagas), detalhe: `${pagas.length} ${pagas.length === 1 ? "paga" : "pagas"}` },
           { rotulo: "A pagar", valor: somar(abertas), detalhe: `${abertas.length} em aberto` },
         ].map((item) => (
@@ -73,7 +80,10 @@ export default async function ContasPage({ searchParams }: { searchParams: Promi
                     <td className="px-4 py-2.5 tabular-nums text-texto-secundario">
                       {conta.vencimento.slice(8)}/{conta.vencimento.slice(5, 7)}
                     </td>
-                    <td className="px-4 py-2.5 font-medium">{conta.descricao}</td>
+                    <td className="px-4 py-2.5 font-medium">
+                      {conta.descricao}
+                      {conta.cartaoNome && <span className="block text-xs font-normal text-texto-secundario">cobrada no cartão {conta.cartaoNome}</span>}
+                    </td>
                     <td className="px-4 py-2.5">{LABEL_CATEGORIA[conta.categoria]}</td>
                     <td className="px-4 py-2.5">
                       <span className="inline-flex items-center gap-1.5">
@@ -87,11 +97,17 @@ export default async function ContasPage({ searchParams }: { searchParams: Promi
                     <td className="px-4 py-2.5 text-right tabular-nums">{formatarMoeda(conta.valor)}</td>
                     <td className="px-4 py-2.5">
                       <div className="flex items-center justify-end gap-3">
-                        <form action={alternarPagamento.bind(null, conta.id, mes, aqui)}>
-                          <BotaoEnvio textoAguardando="…" className={`${paga ? classeBotaoSecundario : classeBotaoConfirma} w-28 whitespace-nowrap`}>
-                            {paga ? "Desfazer" : "Marcar paga"}
-                          </BotaoEnvio>
-                        </form>
+                        {conta.situacao === "NO_CARTAO" && conta.cartaoId ? (
+                          <Link href={`/cartoes/${conta.cartaoId}?mes=${mes}`} className={`${classeBotaoSecundario} w-28 whitespace-nowrap`}>
+                            Ver fatura
+                          </Link>
+                        ) : (
+                          <form action={alternarPagamento.bind(null, conta.id, mes, aqui)}>
+                            <BotaoEnvio textoAguardando="…" className={`${paga ? classeBotaoSecundario : classeBotaoConfirma} w-28 whitespace-nowrap`}>
+                              {paga ? "Desfazer" : "Marcar paga"}
+                            </BotaoEnvio>
+                          </form>
+                        )}
                         <Link href={`/contas/${conta.id}/editar?mes=${mes}`} className="text-accent hover:underline" aria-label={`Editar ${conta.descricao}`}>
                           Editar
                         </Link>

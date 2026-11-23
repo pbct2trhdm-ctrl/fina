@@ -1,16 +1,21 @@
 import type { ContaFixa } from "@/app/generated/prisma/client";
 import { classeInput, classeLabel, classeBotaoPrimario } from "@/lib/estilos";
 import { BotaoEnvio } from "@/components/botao-envio";
-import { CampoCategoria, CampoEscopo } from "@/components/campos";
+import { CampoCartao, CampoCategoria, CampoEscopo } from "@/components/campos";
 
 /** `inicioPadrao` (AAAA-MM) só é usado ao criar: a conta passa a valer a partir desse mês. */
 export function ContaForm({
   conta,
   inicioPadrao,
+  cartoes,
+  cartaoPadrao,
   action,
 }: {
   conta?: ContaFixa;
   inicioPadrao?: string;
+  cartoes: { id: string; nome: string }[];
+  /** Cartão já escolhido ao criar (vindo da tela do cartão). */
+  cartaoPadrao?: string;
   action: (formData: FormData) => void;
 }) {
   return (
@@ -41,6 +46,16 @@ export function ContaForm({
         <CampoEscopo padrao={conta?.escopo ?? "CASA"} />
         <CampoCategoria padrao={conta?.categoria ?? "MORADIA"} />
       </div>
+
+      {cartoes.length > 0 && (
+        <div className="rounded-2xl border border-slate-200/80 bg-white/50 p-3">
+          <CampoCartao cartoes={cartoes} padrao={conta?.cartaoId ?? cartaoPadrao} />
+          <p className="mt-1 text-xs text-texto-secundario">
+            Para assinaturas, academia e outras cobranças mensais no cartão: a conta aparece sozinha em cada fatura e não precisa ser marcada
+            como paga.
+          </p>
+        </div>
+      )}
 
       {!conta && (
         <div className="max-w-[calc(50%-0.5rem)]">

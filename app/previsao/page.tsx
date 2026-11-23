@@ -11,7 +11,7 @@ export default async function PrevisaoPage({ searchParams }: { searchParams: Pro
   const { meses, baseVariaveis, mesesBase } = await previsao(visao, 3);
   const linhas: { rotulo: string; chave: keyof (typeof meses)[number]; nota?: string; forte?: boolean; negativo?: boolean }[] = [
     { rotulo: "Entradas fixas previstas", chave: "entradasFixas", nota: "salário e outras entradas fixas em vigor", forte: true },
-    { rotulo: "Contas fixas", chave: "contasFixas", nota: "aluguel, energia, assinaturas…", negativo: true },
+    { rotulo: "Contas fixas", chave: "contasFixas", nota: "pagas fora do cartão: aluguel, energia…", negativo: true },
     { rotulo: "Parcelas (fora do cartão)", chave: "parcelas", negativo: true },
     { rotulo: "Dívidas e acordos", chave: "dividas", negativo: true },
     { rotulo: "Gastos variáveis (estimativa)", chave: "variaveisEstimados", nota: mesesBase ? `média dos últimos ${mesesBase} ${mesesBase === 1 ? "mês fechado" : "meses fechados"}: gastos avulsos e pagamentos de fatura` : "sem meses fechados para calcular", negativo: true },
@@ -79,7 +79,7 @@ export default async function PrevisaoPage({ searchParams }: { searchParams: Pro
             ))}
             <tr className="text-texto-secundario">
               <td className="px-4 py-2.5">
-                Parcelas já comprometidas nos cartões
+                Parcelas e recorrências já comprometidas nos cartões
                 <span className="block text-xs">não somam nas saídas: entram quando a fatura for paga</span>
               </td>
               {meses.map((m) => (

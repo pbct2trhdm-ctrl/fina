@@ -10,7 +10,7 @@ import { EmptyState } from "@/components/empty-state";
 import { LinkVoltar } from "@/components/link-voltar";
 import { Bolinha, SeletorMes } from "@/components/seletores";
 import { Selo } from "@/components/selo";
-import { classeBotaoPrimario, classeBotaoSecundario, classeTabela, classeTituloPagina, classeTituloSecao } from "@/lib/estilos";
+import { classeBadgeNeutro, classeBotaoPrimario, classeBotaoSecundario, classeTabela, classeTituloPagina, classeTituloSecao } from "@/lib/estilos";
 
 const cabecalho = "border-b border-slate-200/70 text-left text-xs uppercase tracking-wide text-texto-secundario";
 const linhaTabela = "border-b border-slate-200/50 last:border-0 hover:bg-white/60 transition-colors";
@@ -27,7 +27,15 @@ export default async function CartaoPage({ params, searchParams }: { params: Pro
   const fatura = faturas.find((f) => f.mes === mes) ?? faturas[faturas.length - 2];
   const hoje = hojeIsoLocal();
   const diasParaFechar = Math.round((Date.parse(fatura.fim) - Date.parse(hoje)) / 86_400_000);
-  const editar = (item: (typeof fatura.compras)[number]) => (item.tipo === "PARCELA" ? `/parcelados/${item.id}/editar` : `/lancamentos/${item.id}/editar`);
+  const editar = (item: (typeof fatura.compras)[number]) =>
+    item.tipo === "PARCELA" ? `/parcelados/${item.id}/editar` : item.tipo === "CONTA" ? `/contas/${item.id}/editar` : `/lancamentos/${item.id}/editar`;
+  // Recorrências (assinaturas, academia…) cobradas neste cartão e em vigor hoje.
+  const mesHoje = mesAtual();
+  const recorrencias = await prisma.contaFixa.findMany({
+    where: { cartaoId: id, inicio: { lte: mesHoje }, OR: [{ fim: null }, { fim: { gte: mesHoje } }] },
+    orderBy: [{ diaVencimento: "asc" }, { descricao: "asc" }],
+  });
+  const totalRecorrencias = recorrencias.reduce((t, r) => t + r.valor, 0);
   const situacao = fatura.aberta
     ? { tom: "neutro" as const, texto: `Aberta · fecha em ${dm(fatura.fim)}` }
     : fatura.vencimento >= hoje
@@ -110,6 +118,37 @@ export default async function CartaoPage({ params, searchParams }: { params: Pro
           })}
         </ul>
       </section>
+
+      {/* Recorrências do cartão */}
+      <div className="mb-3 flex items-center justify-between">
+        <h2 className={classeTituloSecao}>
+          Recorrências neste cartão
+          {recorrencias.length > 0 && <span className="ml-2 text-sm font-normal text-texto-secundario">{formatarMoeda(totalRecorrencias)} por mês</span>}
+        </h2>
+        <Link href={`/contas/nova?cartao=${id}`} className="text-sm font-medium text-accent hover:underline">
+          + Nova recorrência
+        </Link>
+      </div>
+      {recorrencias.length === 0 ? (
+        <p className="mb-8 rounded-2xl border border-dashed border-slate-300 bg-white/50 px-4 py-3 text-sm text-texto-secundario">
+          Nenhuma recorrência. Cadastre streaming, academia, aplicativos e outras cobranças mensais deste cartão: elas aparecem sozinhas em cada
+          fatura.
+        </p>
+      ) : (
+        <ul className="vidro mb-8 grid grid-cols-1 gap-x-6 rounded-2xl px-4 py-2 sm:grid-cols-2">
+          {recorrencias.map((r) => (
+            <li key={r.id} className="flex items-center justify-between gap-3 border-b border-slate-200/50 py-2 text-sm last:border-0 sm:[&:nth-last-child(2)]:border-0">
+              <Link href={`/contas/${r.id}/editar`} className="min-w-0 hover:underline">
+                <span className="font-medium">{r.descricao}</span>
+                <span className="block text-xs text-texto-secundario">
+                  dia {r.diaVencimento} · {LABEL_CATEGORIA[r.categoria]} · {LABEL_ESCOPO[r.escopo]}
+                </span>
+              </Link>
+              <span className="tabular-nums">{formatarMoeda(r.valor)}</span>
+            </li>
+          ))}
+        </ul>
+      )}
 
       {/* Histórico de faturas */}
       <h2 className={`${classeTituloSecao} mb-3`}>Últimas faturas</h2>
@@ -215,7 +254,10 @@ export default async function CartaoPage({ params, searchParams }: { params: Pro
               {fatura.compras.map((item) => (
                 <tr key={`${item.tipo}-${item.id}`} className={linhaTabela}>
                   <td className="px-4 py-2.5 tabular-nums text-texto-secundario">{dm(item.data)}</td>
-                  <td className="px-4 py-2.5">{item.descricao}</td>
+                  <td className="px-4 py-2.5">
+                    {item.descricao}
+                    {item.recorrente && <span className={`${classeBadgeNeutro} ml-2`}>recorrente</span>}
+                  </td>
                   <td className="px-4 py-2.5">{LABEL_CATEGORIA[item.categoria]}</td>
                   <td className="px-4 py-2.5">
                     <span className="inline-flex items-center gap-1.5">

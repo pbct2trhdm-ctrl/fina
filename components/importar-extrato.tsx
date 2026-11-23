@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 import {
   chaveDescricao,
+  nomesParecidos,
   lerLinhasExtrato,
   parecePagamentoDeFatura,
   pareceTransferencia,
@@ -24,6 +25,7 @@ import {
   categoriasAprendidas,
   pagamentosDeCartaoNoIntervalo,
   pagamentosNoIntervalo,
+  recorrenciasDoCartao,
 } from "@/lib/actions/importacao";
 import { CATEGORIAS, ESCOPOS, LABEL_CATEGORIA, LABEL_ESCOPO, LABEL_TIPO_ENTRADA, TIPOS_ENTRADA, formatarMoeda } from "@/lib/formatacao";
 import { classeBadgeNeutro, classeBotaoPrimario, classeBotaoSecundario, classeCard, classeInput, classeInputAuto, classeLabel } from "@/lib/estilos";
@@ -40,6 +42,8 @@ type Linha = {
   transferencia?: boolean;
   /** Categoria veio de uma regra aprendida com uma correção sua. */
   aprendida?: boolean;
+  /** Fatura de cartão: a linha é a cobrança de uma recorrência cadastrada (e o valor previsto dela). */
+  recorrencia?: { nome: string; previsto: number };
   data: string;
   descricao: string;
   valor: number;
@@ -99,11 +103,26 @@ export function ImportarExtrato({ cartoes }: { cartoes: { id: string; nome: stri
       // Lançamentos já gravados no mesmo intervalo, para marcar os repetidos.
       const buscar = modoAtual === "ENTRADAS" ? entradasNoIntervalo : gastosNoIntervalo;
       const extratoDeConta = modoAtual === "GASTOS" && !cartaoSel;
-      const [existentes, regras, pagosEmCartoes] = await Promise.all([
+      const [existentes, regras, pagosEmCartoes, recorrencias] = await Promise.all([
         compras.length ? buscar(compras[compras.length - 1].data, compras[0].data) : Promise.resolve([]),
         modoAtual === "GASTOS" ? categoriasAprendidas(compras.map((g) => g.descricao)) : Promise.resolve({} as Record<string, string>),
         extratoDeConta && compras.length ? pagamentosDeCartaoNoIntervalo(compras[compras.length - 1].data, compras[0].data) : Promise.resolve([]),
+        faturaDeCartao ? recorrenciasDoCartao(cartaoSel) : Promise.resolve([]),
       ]);
+      // Linha da fatura que é a cobrança de uma recorrência: mesmo nome (ou mesmo valor) perto do dia previsto.
+      const recorrenciaDe = (g: LinhaExtrato) => {
+        const mes = g.data.slice(0, 7);
+        return recorrencias.find((r) => {
+          if (r.inicio > mes || (r.fim && r.fim < mes)) return false;
+          // Dia previsto no mês da linha e nos vizinhos (cobrança do dia 2 pode cair no fim do mês anterior).
+          const quando = Date.parse(g.data);
+          const perto = [-1, 0, 1].some((d) => {
+            const previsto = Date.UTC(+mes.slice(0, 4), +mes.slice(5, 7) - 1 + d, r.diaVencimento);
+            return Math.abs(quando - previsto) <= 7 * 86_400_000;
+          });
+          return perto && (nomesParecidos(g.descricao, r.descricao) || Math.abs(g.valor - r.valor) < 0.01);
+        });
+      };
       const vistos = new Set(existentes.map((g) => chave(g.data, g.valor, g.descricao)));
       // Débito da conta que bate (valor igual, até 3 dias de diferença) com um pagamento de fatura já registrado.
       const pagamentoRegistrado = (g: LinhaExtrato) =>
@@ -120,7 +139,9 @@ export function ImportarExtrato({ cartoes }: { cartoes: { id: string; nome: stri
         compras.map((g) => {
           const duplicada = vistos.has(chave(g.data, g.valor, g.descricao));
           const regra = modoAtual === "GASTOS" ? regras[chaveDescricao(g.descricao)] : undefined;
-          const classe = regra ?? (modoAtual === "ENTRADAS" ? sugerirTipoEntrada(g.descricao) : sugerirCategoria(g.descricao));
+          // Cobrança de uma recorrência herda a categoria e a pessoa cadastradas nela.
+          const recorrente = faturaDeCartao ? recorrenciaDe(g) : undefined;
+          const classe = recorrente?.categoria ?? regra ?? (modoAtual === "ENTRADAS" ? sugerirTipoEntrada(g.descricao) : sugerirCategoria(g.descricao));
           // Em extrato de conta, o débito que paga a fatura de um cartão já está no cartão: vem desmarcado.
           const registrado = extratoDeConta ? pagamentoRegistrado(g) : undefined;
           const pagamentoFatura = extratoDeConta && !registrado && parecePagamentoDeFatura(g.descricao);
@@ -134,8 +155,9 @@ export function ImportarExtrato({ cartoes }: { cartoes: { id: string; nome: stri
             pagamentoRegistrado: registrado,
             transferencia,
             aprendida: !!regra,
+            recorrencia: recorrente ? { nome: recorrente.descricao, previsto: recorrente.valor } : undefined,
             categoria: classe,
-            escopo: escopoSel,
+            escopo: recorrente?.escopo ?? escopoSel,
           };
         })
       );
@@ -425,6 +447,16 @@ export function ImportarExtrato({ cartoes }: { cartoes: { id: string; nome: stri
                       {linha.transferencia && (
                         <span className={`${classeBadgeNeutro} ml-2`} title="Transferência, aplicação ou resgate entre contas suas: não é gasto nem renda. Marque se for mesmo um gasto.">
                           parece transferência
+                        </span>
+                      )}
+                      {linha.recorrencia && (
+                        <span
+                          className={`${classeBadgeNeutro} ml-2 ${Math.abs(linha.recorrencia.previsto - linha.valor) >= 0.01 ? "border-atencao/40 text-atencao" : ""}`}
+                          title="Cobrança de uma recorrência cadastrada. Importar registra o valor real; a recorrência deste mês deixa de aparecer em separado, sem contar duas vezes."
+                        >
+                          recorrência · {linha.recorrencia.nome}
+                          {Math.abs(linha.recorrencia.previsto - linha.valor) >= 0.01 &&
+                            ` · valor mudou (era ${linha.recorrencia.previsto.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })})`}
                         </span>
                       )}
                       {linha.aprendida && (

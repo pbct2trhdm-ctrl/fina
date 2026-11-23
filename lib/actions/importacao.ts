@@ -4,7 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { categoria, data, dinheiro, escopo, tipoEntrada } from "@/lib/validacao";
-import { cartaoExistente } from "@/lib/financas";
+import { cartaoExistente, mesDaFatura } from "@/lib/financas";
 import { aprenderCategorias, regrasPara } from "@/lib/categorias";
 
 export type LinhaImportada = { data: string; descricao: string; valor: number; categoria: string; escopo: string };
@@ -138,8 +138,10 @@ export async function importarFatura(cartaoId: string, compras: LinhaImportada[]
   revalidatePath("/");
   revalidatePath("/cartoes");
   revalidatePath("/lancamentos");
-  const meses = [...comprasValidas, ...pagamentosValidos].map((l) => l.data.toISOString().slice(0, 7)).sort();
-  redirect(`/cartoes/${cartao}?mes=${meses.at(-1)}`);
+  // Abre a fatura em que cai a data mais recente importada (pelo ciclo de fechamento do cartão).
+  const dadosCartao = await prisma.cartao.findUnique({ where: { id: cartao }, select: { diaFechamento: true } });
+  const ultimaData = [...comprasValidas, ...pagamentosValidos].map((l) => l.data.toISOString().slice(0, 10)).sort().at(-1)!;
+  redirect(`/cartoes/${cartao}?mes=${mesDaFatura({ diaFechamento: dadosCartao?.diaFechamento ?? null }, ultimaData)}`);
 }
 
 /** Categorias aprendidas para as descrições de um arquivo (chave normalizada → categoria). */
@@ -157,4 +159,13 @@ export async function pagamentosDeCartaoNoIntervalo(de: string, ate: string) {
     include: { cartao: { select: { nome: true } } },
   });
   return pagamentos.map((p) => ({ data: p.data.toISOString().slice(0, 10), valor: p.valor, cartao: p.cartao.nome }));
+}
+
+/** Recorrências (contas fixas cobradas no cartão) de um cartão, para reconhecê-las na fatura importada. */
+export async function recorrenciasDoCartao(cartaoId: string) {
+  const contas = await prisma.contaFixa.findMany({
+    where: { cartaoId },
+    select: { descricao: true, valor: true, diaVencimento: true, inicio: true, fim: true, categoria: true, escopo: true },
+  });
+  return contas;
 }

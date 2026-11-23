@@ -14,7 +14,7 @@ export type MesPrevisto = {
   contasFixas: number;
   parcelas: number;
   dividas: number;
-  /** Parcelas que vão cair nas faturas dos cartões (compras parceladas no cartão). */
+  /** Parcelas e recorrências (assinaturas…) que vão cair nas faturas dos cartões. */
   parcelasNoCartao: number;
   /** Média dos gastos avulsos (sem cartão) e pagamentos de fatura dos últimos meses fechados. */
   variaveisEstimados: number;
@@ -43,14 +43,17 @@ export async function previsao(visao: VisaoChave, quantidade = 3): Promise<{ mes
   const vigente = (item: { inicio: string; fim: string | null }, mes: string) => item.inicio <= mes && (!item.fim || item.fim >= mes);
   const meses = futuros.map((mes) => {
     const entradasFixas = somar(naVisao(entradas, visao).filter((e) => vigente(e, mes)));
-    const contasFixas = somar(naVisao(contas, visao).filter((c) => vigente(c, mes)));
+    const contasVigentes = naVisao(contas, visao).filter((c) => vigente(c, mes));
+    // Conta cobrada no cartão entra pelo pagamento da fatura (já na estimativa de variáveis).
+    const contasFixas = somar(contasVigentes.filter((c) => !c.cartaoId));
+    const recorrenciasNoCartao = somar(contasVigentes.filter((c) => !!c.cartaoId));
     const ativas = naVisao(parceladas, visao)
       .map((p) => ({ ...p, indice: diferencaMeses(p.inicio, mes) }))
       .filter((p) => p.indice >= 0 && p.indice < p.parcelas)
       .map((p) => ({ ...p, valor: p.valorParcela }));
     const dividas = somar(ativas.filter((p) => p.tipo === "DIVIDA"));
     const parcelas = somar(ativas.filter((p) => p.tipo === "COMPRA" && !p.cartaoId));
-    const parcelasNoCartao = somar(ativas.filter((p) => p.tipo === "COMPRA" && !!p.cartaoId));
+    const parcelasNoCartao = somar(ativas.filter((p) => p.tipo === "COMPRA" && !!p.cartaoId)) + recorrenciasNoCartao;
     const variaveisEstimados = baseVariaveis;
     const totalSaidas = contasFixas + parcelas + dividas + variaveisEstimados;
     return { mes, entradasFixas, contasFixas, parcelas, dividas, parcelasNoCartao, variaveisEstimados, totalSaidas, sobra: entradasFixas - totalSaidas };

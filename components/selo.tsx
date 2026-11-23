@@ -27,4 +27,5 @@ export const SELO_SITUACAO_CONTA: Record<string, { tom: Tom; texto: string }> = 
   VENCIDA: { tom: "critico", texto: "⚠ Vencida" },
   VENCE_HOJE: { tom: "atencao", texto: "● Vence hoje" },
   A_VENCER: { tom: "neutro", texto: "A vencer" },
+  NO_CARTAO: { tom: "neutro", texto: "No cartão" },
 };

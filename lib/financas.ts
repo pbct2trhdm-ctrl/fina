@@ -6,6 +6,7 @@
 import { prisma } from "@/lib/prisma";
 import { hojeIsoLocal } from "@/lib/datas";
 import { diaDoMes, diferencaMeses, intervaloDoMes, mesAtual, somarDias, somarMeses } from "@/lib/meses";
+import { nomesParecidos } from "@/lib/extrato";
 import { ESCOPOS, type CategoriaChave, type EscopoChave, type TipoEntradaChave, type VisaoChave } from "@/lib/formatacao";
 
 export type Lancamento = {
@@ -25,6 +26,8 @@ export type Lancamento = {
    * nos gastos do mês: quem entra é o pagamento da fatura (tipo FATURA).
    */
   noCartao: boolean;
+  /** Conta fixa cobrada no cartão (assinatura, academia…), gerada a partir do cadastro. */
+  recorrente?: boolean;
 };
 
 export const somar = (itens: { valor: number }[]) => itens.reduce((total, item) => total + item.valor, 0);
@@ -47,11 +50,19 @@ export async function lancamentosPorMes(
     gte: intervaloDoMes(ordenados[0]).inicio,
     lt: intervaloDoMes(ordenados[ordenados.length - 1]).fim,
   };
-  const [gastos, pagamentos, compras, faturas] = await Promise.all([
+  const ultimo = ordenados[ordenados.length - 1];
+  // Compras no cartão uma semana antes e depois do intervalo, para reconhecer a cobrança de uma recorrência.
+  const folga = { gte: new Date(intervalo.gte.getTime() - 7 * 86_400_000), lt: new Date(intervalo.lt.getTime() + 7 * 86_400_000) };
+  const [gastos, pagamentos, compras, faturas, recorrencias, cobradas] = await Promise.all([
     prisma.gasto.findMany({ where: { data: intervalo } }),
     prisma.pagamentoConta.findMany({ where: { mes: { in: meses } }, include: { conta: true } }),
     prisma.compraParcelada.findMany(),
     prisma.pagamentoCartao.findMany({ where: { data: intervalo }, include: { cartao: true } }),
+    prisma.contaFixa.findMany({
+      where: { cartaoId: { not: null }, inicio: { lte: ultimo }, OR: [{ fim: null }, { fim: { gte: ordenados[0] } }] },
+      include: { pagamentos: { where: { mes: { in: meses } }, select: { mes: true } } },
+    }),
+    prisma.gasto.findMany({ where: { data: folga, cartaoId: { not: null } }, select: { data: true, valor: true, descricao: true, cartaoId: true } }),
   ]);
 
   const porMes: Record<string, Lancamento[]> = Object.fromEntries(meses.map((m) => [m, []]));
@@ -114,6 +125,36 @@ export async function lancamentosPorMes(
       noCartao: false,
     });
   }
+  // Contas fixas cobradas no cartão: viram uma compra do cartão em cada mês em
+  // vigor — exceto quando a cobrança já veio na fatura importada (mesmo cartão,
+  // até 7 dias da data, valor igual ou mesmo nome) ou foi paga como conta comum.
+  for (const conta of recorrencias) {
+    for (const mes of meses) {
+      if (conta.inicio > mes || (conta.fim && conta.fim < mes)) continue;
+      if (conta.pagamentos.some((p) => p.mes === mes)) continue;
+      const dia = diaDoMes(mes, conta.diaVencimento);
+      const alvo = Date.parse(dia);
+      const jaCobrada = cobradas.some(
+        (g) =>
+          g.cartaoId === conta.cartaoId &&
+          Math.abs(g.data.getTime() - alvo) <= 7 * 86_400_000 &&
+          (Math.abs(g.valor - conta.valor) < 0.01 || nomesParecidos(g.descricao, conta.descricao))
+      );
+      if (jaCobrada) continue;
+      porMes[mes].push({
+        id: conta.id,
+        tipo: "CONTA",
+        data: dia,
+        descricao: conta.descricao,
+        categoria: conta.categoria,
+        escopo: conta.escopo,
+        valor: conta.valor,
+        cartaoId: conta.cartaoId,
+        noCartao: true,
+        recorrente: true,
+      });
+    }
+  }
   for (const mes of meses) {
     if (!opcoes.comprasNoCartao) porMes[mes] = porMes[mes].filter((item) => !item.noCartao);
     porMes[mes].sort((a, b) => b.data.localeCompare(a.data) || a.descricao.localeCompare(b.descricao));
@@ -121,20 +162,23 @@ export async function lancamentosPorMes(
   return porMes;
 }
 
-export type SituacaoConta = "PAGA" | "VENCIDA" | "VENCE_HOJE" | "A_VENCER";
+/** NO_CARTAO: cobrada no cartão de crédito; entra nos gastos pelo pagamento da fatura. */
+export type SituacaoConta = "PAGA" | "VENCIDA" | "VENCE_HOJE" | "A_VENCER" | "NO_CARTAO";
 
 /** Contas fixas em vigor no mês, com a situação de pagamento naquele mês. */
 export async function contasDoMes(mes: string) {
   const contas = await prisma.contaFixa.findMany({
     where: { inicio: { lte: mes }, OR: [{ fim: null }, { fim: { gte: mes } }] },
-    include: { pagamentos: { where: { mes } } },
+    include: { pagamentos: { where: { mes } }, cartao: { select: { nome: true } } },
     orderBy: [{ diaVencimento: "asc" }, { descricao: "asc" }],
   });
   const hoje = hojeIsoLocal();
   return contas.map((conta) => {
     const pagamento = conta.pagamentos[0] ?? null;
     const vencimento = diaDoMes(mes, conta.diaVencimento);
-    const situacao: SituacaoConta = pagamento
+    const situacao: SituacaoConta = conta.cartaoId && !pagamento
+      ? "NO_CARTAO"
+      : pagamento
       ? "PAGA"
       : vencimento < hoje
         ? "VENCIDA"
@@ -151,6 +195,8 @@ export async function contasDoMes(mes: string) {
       /** Valor pago, se já paga; senão o valor atual da conta. */
       valor: pagamento ? pagamento.valor : conta.valor,
       situacao,
+      cartaoId: conta.cartaoId,
+      cartaoNome: conta.cartao?.nome ?? null,
     };
   });
 }

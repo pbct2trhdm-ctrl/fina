@@ -50,6 +50,7 @@ model Cartao {
   escopo        Escopo            @default(EU)
   gastos        Gasto[]
   compras       CompraParcelada[]
+  contas        ContaFixa[]
   pagamentos    PagamentoCartao[]
   criadoEm      DateTime          @default(now())
 }
@@ -80,6 +81,10 @@ model ContaFixa {
   escopo        Escopo
   inicio        String
   fim           String?
+  /// Cobrada no cartão (assinatura, academia…): aparece em cada fatura do
+  /// cartão como compra e entra nos gastos só pelo pagamento da fatura.
+  cartaoId      String?
+  cartao        Cartao?          @relation(fields: [cartaoId], references: [id], onDelete: SetNull)
   pagamentos    PagamentoConta[]
   criadoEm      DateTime         @default(now())
 }

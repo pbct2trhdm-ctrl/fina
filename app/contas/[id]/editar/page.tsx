@@ -6,6 +6,7 @@ import { classeBotaoPerigo, classeCard, classeTituloPagina, classeTituloSecao } 
 import { BotaoEnvio } from "@/components/botao-envio";
 import { LinkVoltar } from "@/components/link-voltar";
 import { mes as lerMes } from "@/lib/validacao";
+import { listarCartoes } from "@/lib/financas";
 import { nomeMes } from "@/lib/meses";
 
 export default async function EditarContaPage({
@@ -17,14 +18,14 @@ export default async function EditarContaPage({
 }) {
   const { id } = await params;
   const mes = lerMes((await searchParams).mes);
-  const conta = await prisma.contaFixa.findUnique({ where: { id } });
+  const [conta, cartoes] = await Promise.all([prisma.contaFixa.findUnique({ where: { id } }), listarCartoes()]);
   if (!conta) notFound();
 
   return (
     <div>
       <LinkVoltar href={`/contas?mes=${mes}`} label="Voltar para Contas fixas" />
       <h1 className={`${classeTituloPagina} mb-6`}>Editar conta fixa</h1>
-      <ContaForm conta={conta} action={atualizarConta.bind(null, conta.id)} />
+      <ContaForm conta={conta} cartoes={cartoes} action={atualizarConta.bind(null, conta.id)} />
 
       <div className={`${classeCard} mt-8 max-w-xl`}>
         <h2 className={`${classeTituloSecao} mb-1`}>Encerrar conta</h2>

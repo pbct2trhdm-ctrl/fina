@@ -210,3 +210,15 @@ const TRANSFERENCIA = /transf(erencia|\.)?\b|\btef\b|\bdoc\b|\bted\b|aplicacao|r
 export function pareceTransferencia(descricao: string): boolean {
   return TRANSFERENCIA.test(semAcento(descricao));
 }
+
+/**
+ * Duas descrições falam da mesma coisa? Compara as palavras com 4 letras ou
+ * mais da chave normalizada: "Netflix" e "NETFLIX.COM", "Academia Smart" e
+ * "SMARTFIT ACADEMIA 123".
+ */
+export function nomesParecidos(a: string, b: string): boolean {
+  const palavras = (texto: string) => chaveDescricao(texto).split(/[\s*.&]+/).filter((p) => p.length >= 4);
+  const ca = chaveDescricao(a).replace(/[\s*.&]+/g, "");
+  const cb = chaveDescricao(b).replace(/[\s*.&]+/g, "");
+  return palavras(a).some((p) => cb.includes(p)) || palavras(b).some((p) => ca.includes(p));
+}
