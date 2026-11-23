@@ -123,3 +123,68 @@ export function IconeConfiguracoes(props: IconeProps) {
     </Svg>
   );
 }
+
+export function IconeMais(props: IconeProps) {
+  return (
+    <Svg {...props}>
+      <path d="M12 5v14M5 12h14" strokeLinecap="round" />
+    </Svg>
+  );
+}
+
+export function IconeMenuRecolher(props: IconeProps) {
+  return (
+    <Svg {...props}>
+      <rect x="3.5" y="4.5" width="17" height="15" rx="2.5" />
+      <path d="M9 4.5v15" />
+      <path d="m15.5 10-2 2 2 2" strokeLinecap="round" strokeLinejoin="round" />
+    </Svg>
+  );
+}
+
+export function IconeMenuExpandir(props: IconeProps) {
+  return (
+    <Svg {...props}>
+      <rect x="3.5" y="4.5" width="17" height="15" rx="2.5" />
+      <path d="M9 4.5v15" />
+      <path d="m13.5 10 2 2-2 2" strokeLinecap="round" strokeLinejoin="round" />
+    </Svg>
+  );
+}
+
+export function IconeNuvem(props: IconeProps) {
+  return (
+    <Svg {...props}>
+      <path d="M7 18.5h10a4 4 0 0 0 .6-7.96A5.5 5.5 0 0 0 7.1 9.4 4.5 4.5 0 0 0 7 18.5Z" strokeLinejoin="round" />
+      <path d="m9.5 13.5 2 2 3.5-3.5" strokeLinecap="round" strokeLinejoin="round" />
+    </Svg>
+  );
+}
+
+export function IconeSetas(props: IconeProps) {
+  return (
+    <Svg {...props}>
+      <path d="m8 9 4-4 4 4M8 15l4 4 4-4" strokeLinecap="round" strokeLinejoin="round" />
+    </Svg>
+  );
+}
+
+/** Atalho "Novo gasto": círculo com sinal de mais. */
+export function IconeNovoGasto(props: IconeProps) {
+  return (
+    <Svg {...props}>
+      <circle cx="12" cy="12" r="8" />
+      <path d="M12 8.5v7M8.5 12h7" strokeLinecap="round" />
+    </Svg>
+  );
+}
+
+/** Atalho "Nova entrada": círculo com seta para cima. */
+export function IconeNovaEntrada(props: IconeProps) {
+  return (
+    <Svg {...props}>
+      <circle cx="12" cy="12" r="8" />
+      <path d="M12 16V8.5m0 0-3 3m3-3 3 3" strokeLinecap="round" strokeLinejoin="round" />
+    </Svg>
+  );
+}

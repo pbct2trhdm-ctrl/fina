@@ -227,3 +227,180 @@ details[open] > :not(summary) { animation: surgir 180ms cubic-bezier(0.2, 0.8, 0
   .animar-pagina, .animar-cascata > *, .animar-barra { animation-duration: 1ms; animation-delay: 0ms; }
   .vidro, .vidro-forte, .vidro-destaque, a, button, input, select { transition: none; }
 }
+
+/* ── Menu lateral ──
+   Cores por variável, para os três temas (Configurações → Aparência do menu):
+   vidro (padrão), azul e escuro. O modo recolhido vira um trilho só de
+   ícones, com o nome num balão ao passar o mouse. Preferências aplicadas no
+   <html> por um script no <head> (app/layout.tsx), antes da primeira pintura. */
+:root {
+  --m-forte: #0f172a;
+  --m-fraco: #64748b;
+  --m-item: #475569;
+  --m-hover: rgb(255 255 255 / 0.6);
+  --m-ativo: var(--color-accent);
+  --m-indicador: rgb(255 255 255 / 0.9);
+  --m-indicador-sombra: 0 1px 2px rgb(15 23 42 / 0.06), 0 10px 22px -12px rgb(37 99 235 / 0.45);
+  --m-barra: var(--color-accent);
+  --m-barra-orc: linear-gradient(90deg, var(--color-accent), #38bdf8);
+  --m-secao: #94a3b8;
+  --m-cartao: rgb(255 255 255 / 0.55);
+  --m-cartao-borda: rgb(255 255 255 / 0.85);
+  --m-trilho: rgb(15 23 42 / 0.08);
+  --m-borda: rgb(15 23 42 / 0.07);
+  --m-avatar: rgb(37 99 235 / 0.1);
+  --m-avatar-texto: var(--color-accent);
+  --m-anel: #ffffff;
+  --m-dica: #0f172a;
+  --m-dica-texto: #ffffff;
+}
+
+@layer components {
+  html[data-menu-tema="azul"] .menu-lateral {
+    --m-forte: #ffffff;
+    --m-fraco: rgb(255 255 255 / 0.72);
+    --m-item: rgb(255 255 255 / 0.78);
+    --m-hover: rgb(255 255 255 / 0.1);
+    --m-ativo: #ffffff;
+    --m-indicador: rgb(255 255 255 / 0.18);
+    --m-indicador-sombra: inset 0 1px 0 rgb(255 255 255 / 0.2);
+    --m-barra: #ffffff;
+    --m-barra-orc: #ffffff;
+    --m-secao: rgb(255 255 255 / 0.55);
+    --m-cartao: rgb(255 255 255 / 0.12);
+    --m-cartao-borda: rgb(255 255 255 / 0.16);
+    --m-trilho: rgb(255 255 255 / 0.25);
+    --m-borda: rgb(255 255 255 / 0.14);
+    --m-avatar: rgb(255 255 255 / 0.16);
+    --m-avatar-texto: #ffffff;
+    --m-anel: #2a5ce6;
+    background: linear-gradient(165deg, #3468f2 0%, #2453dd 55%, #1d43c2 100%);
+    border-color: rgb(255 255 255 / 0.18);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+    box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.25), 0 24px 48px -18px rgb(30 64 175 / 0.6);
+  }
+  html[data-menu-tema="escuro"] .menu-lateral {
+    --m-forte: #f1f5f9;
+    --m-fraco: #94a3b8;
+    --m-item: #a3acbb;
+    --m-hover: rgb(255 255 255 / 0.06);
+    --m-ativo: #ffffff;
+    --m-indicador: rgb(255 255 255 / 0.08);
+    --m-indicador-sombra: inset 0 1px 0 rgb(255 255 255 / 0.06);
+    --m-barra: #fbbf24;
+    --m-barra-orc: #fbbf24;
+    --m-secao: #64748b;
+    --m-cartao: rgb(255 255 255 / 0.05);
+    --m-cartao-borda: rgb(255 255 255 / 0.07);
+    --m-trilho: rgb(255 255 255 / 0.12);
+    --m-borda: rgb(255 255 255 / 0.07);
+    --m-avatar: rgb(251 191 36 / 0.14);
+    --m-avatar-texto: #fbbf24;
+    --m-anel: #1b1d24;
+    --m-dica: #f8fafc;
+    --m-dica-texto: #0f172a;
+    background: linear-gradient(180deg, #1d1f27 0%, #15161c 100%);
+    border-color: rgb(255 255 255 / 0.06);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+    box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.06), 0 24px 48px -18px rgb(0 0 0 / 0.55);
+  }
+  html[data-menu-tema="azul"] .menu-lateral::before,
+  html[data-menu-tema="escuro"] .menu-lateral::before {
+    opacity: 0.18;
+  }
+
+  .menu-forte { color: var(--m-forte); }
+  .menu-fraco { color: var(--m-fraco); }
+  .menu-secao { color: var(--m-secao); }
+  .menu-trilho { background: var(--m-trilho); }
+  .menu-barra { background: var(--m-barra-orc); }
+  .menu-avatar { background: var(--m-avatar); color: var(--m-avatar-texto); }
+  .menu-rodape { border-color: var(--m-borda); }
+  .menu-anel, .menu-selo-ponto { --tw-ring-color: var(--m-anel); }
+
+  .menu-item { color: var(--m-item); }
+  .menu-item:hover { background: var(--m-hover); color: var(--m-forte); }
+  .menu-item[aria-current="page"] { color: var(--m-ativo); }
+  .menu-item[aria-current="page"]:hover { background: transparent; }
+
+  .menu-indicador { background: var(--m-indicador); box-shadow: var(--m-indicador-sombra); }
+  /* Barrinha na borda do menu marcando a tela atual. */
+  .menu-indicador::before {
+    content: "";
+    position: absolute;
+    left: -12px;
+    top: 24%;
+    bottom: 24%;
+    width: 4px;
+    border-radius: 0 4px 4px 0;
+    background: var(--m-barra);
+  }
+
+  .menu-cartao {
+    background: var(--m-cartao);
+    border: 1px solid var(--m-cartao-borda);
+    transition: background-color 180ms ease, transform 180ms ease;
+  }
+  a.menu-cartao:hover, button.menu-cartao:not(:disabled):hover { transform: translateY(-1px); }
+
+  .menu-flutuante {
+    background: rgb(255 255 255 / 0.94);
+    border: 1px solid rgb(255 255 255 / 0.9);
+    -webkit-backdrop-filter: blur(20px) saturate(180%);
+    backdrop-filter: blur(20px) saturate(180%);
+    box-shadow: 0 1px 2px rgb(15 23 42 / 0.06), 0 18px 40px -16px rgb(15 23 42 / 0.3);
+  }
+}
+
+/* Fora das camadas: precisa vencer as classes utilitárias (display, padding)
+   que os elementos do menu também usam. */
+.menu-dica {
+  display: none;
+  background: var(--m-dica);
+  color: var(--m-dica-texto);
+  box-shadow: 0 8px 20px -8px rgb(15 23 42 / 0.45);
+}
+.menu-so-recolhido { display: none; }
+
+/* A lista do menu rola sem mostrar a barra do sistema. */
+.menu-meio { scrollbar-width: none; }
+.menu-meio::-webkit-scrollbar { display: none; }
+
+/* Largura e trilho (só no computador). */
+.menu-desktop { width: 17rem; transition: width 260ms cubic-bezier(0.2, 0.8, 0.2, 1); }
+html[data-menu-recolhido="1"] .menu-desktop,
+html[data-menu-recolhido="1"] .menu-desktop .menu-meio { overflow: visible; }
+html[data-menu-recolhido="1"] .menu-desktop { width: 5rem; }
+html[data-menu-recolhido="1"] .menu-desktop .menu-rotulo { display: none; }
+html[data-menu-recolhido="1"] .menu-desktop .menu-so-recolhido { display: contents; }
+html[data-menu-recolhido="1"] .menu-desktop button.menu-so-recolhido { display: grid; }
+html[data-menu-recolhido="1"] .menu-desktop .menu-topo { flex-direction: column; justify-content: center; gap: 0.5rem; padding-bottom: 0.25rem; }
+html[data-menu-recolhido="1"] .menu-desktop .menu-item { justify-content: center; gap: 0; padding-left: 0; padding-right: 0; }
+html[data-menu-recolhido="1"] .menu-desktop .menu-rodape { flex-direction: column; }
+html[data-menu-recolhido="1"] .menu-desktop .menu-secao { position: relative; height: 0.9rem; padding: 0; }
+html[data-menu-recolhido="1"] .menu-desktop .menu-secao::after {
+  content: "";
+  position: absolute;
+  left: 0.9rem;
+  right: 0.9rem;
+  top: 0.45rem;
+  height: 1px;
+  background: var(--m-borda);
+}
+html[data-menu-recolhido="1"] .menu-desktop .menu-item:hover .menu-dica,
+html[data-menu-recolhido="1"] .menu-desktop .menu-item:focus-visible .menu-dica {
+  display: block;
+  animation: surgir-lado 140ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+@keyframes surgir-lado {
+  from { opacity: 0; transform: translate(-4px, -50%); }
+  to { opacity: 1; transform: translate(0, -50%); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .menu-desktop { transition: none; }
+  html[data-menu-recolhido="1"] .menu-desktop .menu-item:hover .menu-dica { animation: none; }
+}

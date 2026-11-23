@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { apagarTodosOsDados, carregarDadosDeExemplo } from "@/lib/actions/dados";
 import { BotaoEnvio } from "@/components/botao-envio";
+import { AparenciaMenu } from "@/components/aparencia-menu";
 import { classeBotaoPerigo, classeBotaoSecundario, classeCard, classeTituloPagina, classeTituloSecao } from "@/lib/estilos";
 
 export default async function ConfiguracoesPage() {
@@ -17,6 +18,12 @@ export default async function ConfiguracoesPage() {
   return (
     <div className="max-w-3xl">
       <h1 className={`${classeTituloPagina} mb-6`}>Configurações</h1>
+
+      <section className={`${classeCard} mb-6`}>
+        <h2 className={`${classeTituloSecao} mb-1`}>Aparência do menu</h2>
+        <p className="mb-4 text-sm text-texto-secundario">Tema do menu lateral e modo recolhido. Fica guardado neste navegador.</p>
+        <AparenciaMenu />
+      </section>
 
       <section className={`${classeCard} mb-6`}>
         <h2 className={`${classeTituloSecao} mb-1`}>Dados gravados</h2>

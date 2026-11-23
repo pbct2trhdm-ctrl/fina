@@ -39,6 +39,10 @@ O gasto de um mês é a soma de: gastos avulsos do mês, contas fixas **pagas** 
 - **LimiteCategoria**: limite mensal por categoria, próprio de cada visão.
 - **Reserva** e **Meta**: valores guardados, informados à mão (não são calculados a partir das entradas).
 
+## Menu lateral
+
+Menu flutuante em grupos (Principal, Contas e cartões, Planejamento, Atalhos), com destaque que desliza até a tela atual, selos de pendência (contas vencidas, entradas a confirmar), seletor de visão da tela aberta, cartão do orçamento do mês e rodapé com a data do último backup — ver `components/sidebar.tsx` e `lib/menu.ts`. Pode ser **recolhido** num trilho só de ícones (o nome aparece num balão) e tem três **temas**: vidro, azul e escuro (Configurações → Aparência do menu). As duas preferências ficam no navegador e são aplicadas antes da primeira pintura (`app/layout.tsx`, `lib/preferencias-menu.ts`).
+
 ## Telas
 
 - **Resumo** (`/`): gasto do mês contra o orçamento, quanto dá para gastar por dia, balanço do mês (entradas, saídas e saldo), gasto por pessoa, últimos 6 meses, categorias com limites, contas do mês (com botão Pagar), parcelas, reserva e metas.
